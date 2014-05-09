@@ -1,0 +1,456 @@
+
+= Rangeary - Multiple Range(Extd) class
+
+This package defines Rangeary class, which contains any multiple
+1-dimensional ranges ({RangeExtd} objects).  For example, a multiple
+range of
+   0.5 < x <= 2.5,  6.0 <= x < 8.0,  10.0 <= x (<= Infinity)
+for <tt>x</tt> can be defined in this class.
+
+The element objects for {Rangeary} can be anthing that can form
+{RangeExtd} objects; not only Numeric (or Real) but anything
+Comparable.  {Rangeary} accepts the built-in Range-class objects for
+the elements in initialisation, too.
+
+All the four standard logical operations, that is, negation
+(<tt>~</tt>), conjunction (<tt>&</tt> or <tt>*</tt>), disjunction
+(<tt>|</tt> or <tt>+</tt>) and exclusive disjunction (<tt>^</tt> or
+<tt>xor</tt>) are defined, as well as subtraction (<tt>-</tt>).
+
+{Rangeary} objects are immutable - once it is created, you can not
+alter the contents.
+
+Practically, {Rangeary} is a sub-class of Array, works as an array of
+{RangeExtd}, and inherits most of the methods, hence you can apply most
+operations to {Rangeary} that Array accpets, within the restriction of
+immutability of {Rangeary}. In addition, {Rangeary} offers several
+methods that directly work on its element as a range.  In the above
+example, <tt>#cover?(1.0)</tt> would return true, whereas
+<tt>#cover?(9.0)</tt>, false.
+
+
+With this class, logical operations of 1-dimensional range objects are
+now possible and easy.
+I hope you find it to be useful.
+
+
+== Install
+
+First, you need {RangeExtd} class library (basically, two files of pure ruby code), which is in gem:
+  gem install range_extd
+Or, get it from
+{https://rubygems.org/gems/range_extd}
+if you have not yet installed it.
+
+Then, install this library.
+  gem install rangeary
+
+A file
+  rangeary/rangeary.rb
+should be installed in one of your <tt>$LOAD_PATH</tt>.
+Alternatively, get it from
+{http://rubygems.org/gems/rangeary}
+
+Then all you need to do is
+  require 'rangeary/rangeary'
+or, possibly as follows, if you manually install it
+  require 'rangeary'
+in your Ruby script (or irb).  The library files like
+<tt>range_extd/range_extd.rb</tt> for {RangeExtd} is automatically
+loaded.
+
+{Rangeary} itself may work in Ruby 1.8, but {RangeExtd} works in only
+Ruby 2.0 (or maybe 1.9.3) and above, hence {Rangeary} does not work in
+Ruby 1.8 or earlier.
+
+Have fun!
+
+
+== Simple Examples
+
+=== How to create a Rangeary instance
+
+Here are some simple examples.
+
+   r1 = RangeExtd(?a...?d, true) # => a<...d
+   ra = Rangeary(?g..?h, r1)     # => [a<...d, g..h]
+   Rangeary(RangeExtd::NONE)     # => [RangeExtd::NONE]
+   Rangeary(RangeExtd::NONE, 1..5, 3...7)  # => [1...7]
+   Rangeary(true..true)          # => ArgumentError
+
+Basically, <tt>Rangeary()</tt> or <tt>Rangeary.new()</tt> accepts
+an arbitrary number of either {Range}, {RangeExtd}, {Rangeary}, or a
+combination of them.  Note Range objects that return false in
+{Range#valid?} will raise an exception.
+
+For more detail and examples, see {Rangeary.new}.
+
+
+=== Practical application examples
+
+   ra.to_a                       # => ["a"<..."d", "g".."h"]
+   ra.cover?("a")                # => false
+   ra.cover?("b")                # => true
+   ra.end                        # => "h"
+   ra.each do |i|
+     print i.begin
+   end    # => self ( "ag" => STDOUT )
+   ra.each_element do |i|
+     print i
+   end    # => self ( "bcgh" => STDOUT )
+
+   rb = Rangeary(6...9, 2..4)    # => [2..4, 6...9]
+   rb + Rangeary(3..7)           # => [2...9]
+   rb - Rangeary(3..7)           # => [2...3, RangeExtd(7,'<...',9)]
+   rb * Rangeary(4..5, 8..10)    # => [4..4, 8...9]
+   rb.negation                   # => [-Float::INFINITY...2, RangeExtd(4,'<...',6), 9..Float::INFINITY]
+
+Most of the methods that are in the built-in Array can be used, as long as
+it does not violate the immutability of {Rangeary} objects, such as
+{Array#push}.
+
+
+== Description
+
+Once the file <tt>rangeary.rb</tt> is required, a class is defined, in
+addtion to the two defined in the RangeExtd library
+(<tt>RangeExtd</tt> and <tt>RangeExtd::Infinity</tt>).
+
+* Rangeary
+
+
+=== Rangeary Class
+
+{Rangeary} objects are immutable, the same as Range and RangeExtd.
+Hence once an instance is created, it would not change.
+
+How to create an instance is explained above (in the Examples
+sections).  Any attempt to try to create an instance with one of
+elements being not "valid" as a range, that is, {Range#valid?} returns
+false, raises an exception (<tt>ArgumentError</tt>), and fails.
+
+Note users can supply negative and/or positive infinity objects in
+initialising {Rangeary} object, corresponding to the range objects
+they give.  In default they are the type of either {Float::INFINITY} or
+{RangeExtd::Infinity::POSITIVE}.  See {Rangeary.new} for detail.
+
+When multiple ranges are given in initialising, they are sorted in
+storing, and if there is any overlap among any of the elements, they
+are treated as disjunction (that is, simple summation).  That means
+the objects a {Rangeary} instance holds internally can be different from 
+the objects given in initialisation, that is, their {#object_id} may be
+different.  In particular, if built-in Range objects are given,
+they are always converted into {RangeExtd} objects internally.
+
+If any of the given range in the intialisation is empty, that is,
+{Range#empty?} returns true, they are ignored, unless all of the
+ranges given are empty ranges, in which case the "smallest" one will be
+preserved.
+
+If the result of the operation is empty, only the element of the
+resultant {Rangeary} is {RangeExtd::NONE}, and hence
+{Rangeary#empty_element?} will return true.
+
+For any Rangeary objects, {Rangeary#to_a}.size is always
+positive and not zero for that reason, or {Rangeary#empty?} returns
+always false, as {Rangeary#empty?} is a method inherited from Array
+(Use {Rangeary#empty_element?} instead to check if the instance is
+empty or not as a range).
+   Rangeary(RangeExtd::NONE).empty?          # => false
+   Rangeary(RangeExtd::NONE).empty_element?  # => true
+
+As mentioned above, all the methods of Array but a few are inherited
+to this {Rangeary} class, and they work based on each element
+{RangeExtd}.  Four methods work differently: {Rangeary#+} and
+{Rangeary#*} are the alias to {Rangeary#disjunction} and
+{Rangeary#conjunction}, repectively.  {Rangeary#===} performs
+{Range#===} for all the Rangeary element ranges and return true if any
+of them returns true.  Therefore, {Rangeary#===}(RangeExtd(**))
+returns always false.  {Rangeary#flatten} returns the concatnated
+array of {Rangeary#to_a} for all the range elements.  Also, [#length]
+and [#reverse] are undefined.
+
+{Rangeary#==} and {Rangeary#eql?} work the same as Array, hence
+  [2..4, 6..8] == Rangeary(2..4, 6..8)  # => true
+But please note
+  [2..4, 6..8] == Rangeary(6..8, 2..4)  # => true
+  [6..8, 2..4] == Rangeary(6..8, 2..4)  # => false
+In short the direct comparison with a standard Array is not recommended.
+Instead compare with other {Rangeary} objects.
+
+All the other methods operating on the element of ranges, rather than
+on the ranges themselves, have a suffix of <tt>_element</tt>, if there
+is the same method name in the built-in Array.  For example,
+{Rangeary#size} returns the number of {RangeExtd} objects it holds,
+and {Rangeary#size_element} returns the total {Range#size} of all
+the {RangeExtd} objects it holds.
+   Rangeary(1..3, 5..8).size          # => 2
+   Rangeary(1..3, 5..8).size_element  # => 7
+
+
+== Known bugs
+
+* None is known.
+
+This library requires Ruby 2.0 or above (it may work all right with
+Ruby 1.9.3, however I have never tested it).
+
+Extensive tests have been performed, as included in the package.
+
+
+== ToDo
+
+Nothing planned.
+
+
+== Final notes
+
+This work is inspired by Ian Stewart, who developped a (numeric)
+multiple-range library in Fortran90 for the SAS software package for
+XMM-Newton telescope.  I appreciate his work.
+
+The implementation to Ruby was not straightforward, though, partly
+because the built-in Range does not allow to exclude the begin
+boundary, and partly because the infinity is not defined for general
+objects but Numeric (Real) in Ruby.  {RangeExtd} class I have developed
+makes this library possible.  I am glad the completeness of ranges in
+the 1-dimensional space for arbitrary Comparable object is achieved now.
+
+Enjoy.
+
+
+
+== Miscellaneous
+
+== Copyright etc
+
+Author::  Masa Sakano < imagine a_t sakano dot co dot uk >
+License:: MIT.
+Warranty:: No warranty whatsoever.
+Versions:: The versions of this package follow Semantic Versioning (2.0.0) http://semver.org/
+
+
+
+= Rangeary - 複数Range(Extd)クラス
+
+このパッケージは、1次元の任意の数のレンジ({RangeExtd} オブジェクト)を
+保持する Rangeary クラスを定義しています。たとえば、<tt>x</tt> に
+対する複数レンジの
+   0.5 < x <= 2.5,  6.0 <= x < 8.0,  10.0 <= x (<= 無限大)
+がこのクラスで定義できます。
+
+{RangeExtd} の要素たり得るオブジェクトは全て {Rangeary} の要素となり
+得ます。Numeric(の実数)に限らず、Comparable であるオブジェクトは全て
+可能です。また、{Rangeary} は、組込Rangeクラスのオブジェクトも初期化に
+使えます。
+
+四つの標準論理演算全て、すなわち否定(negation; <tt>~</tt>)、論理積
+(conjunction; <tt>&</tt> または <tt>*</tt>)、論理和(disjunction;
+<tt>|</tt> または <tt>+</tt>)および排他的論理和(exclusive disjunction;
+<tt>^</tt> または <tt>xor</tt>)、またそれに加えて引き算(subtraction;
+<tt>-</tt>)が、定義されています。
+
+{Rangeary} オブジェクトはイミュータブルです。すなわち、
+一度インスタンスが生成されると、要素を書換えることはできません。
+
+実用的には、{Rangeary} は、Arrayのサブクラスとなっていて、{RangeExtd}
+の配列として振舞います。また、Arrayのほとんどのメソッドを継承していま
+す。したがって、イミュータブルな{Rangeary}に許される限りにおいて、
+Arrayに使えるほとんどの操作を{Rangeary}に適用できます。加えて、
+{Rangeary}には、そのレンジの要素に直接働きかけるメソッドも幾つかあり
+ます。上に挙げた例ならば、<tt>#cover?(1.0)</tt> は真を返し、
+<tt>#cover?(9.0)</tt> は偽を返します。
+
+このクラスにより、1次元レンジへの論理演算が可能かつ容易になりました。
+これが有用なものであることを願ってここにリリースします。
+
+
+== インストール
+
+まず、{RangeExtd} クラスのライブラリ(純粋に rubyで書かれたファイル 2個
+です)が必要です。gem を使ってインストールできます。
+  gem install range_extd
+もしくは以下から入手して下さい。
+https://rubygems.org/gems/range_extd
+
+次いで、このライブラリをインストールします。
+  gem install rangeary
+
+ファイルが一つ、
+  rangeary/rangeary.rb
+<tt>$LOAD_PATH</tt>上のどこかにインストールされるはずです。 
+あるいは以下から入手可能です。
+http://rubygems.org/gems/rangeary
+
+後は、Ruby のコード(又は irb)から
+  require 'rangeary/rangeary'
+とするだけです。もしくは、特に手でインストールした場合は、
+  require 'rangeary'
+とする必要があるかも知れません。他のファイル({RangeExtd} 用の
+<tt>range_extd/range_extd.rb</tt>)は、自動的に読込まれます。
+
+{Rangeary} 自体は Ruby 1.8でも動作するかも知れません。しかし、
+{RangeExtd} が Ruby 2.0 (ひょっとしたら 1.9.3)以上でしか動かないため、
+実質的には {Rangeary} は Ruby 1.8 以前のバージョンでは動作しません。
+
+お楽しみあれ!
+
+
+== 単純な使用例
+
+=== Rangeary インスタンスを作成する方法
+
+以下に幾つかの基本的な使用例を列挙します。
+
+   r1 = RangeExtd(?a...?d, true) # => a<...d
+   ra = Rangeary(?g..?h, r1)     # => [a<...d, g..h]
+   Rangeary(RangeExtd::NONE)     # => [RangeExtd::NONE]
+   Rangeary(RangeExtd::NONE, 1..5, 3...7)  # => [1...7]
+   Rangeary(true..true)          # => ArgumentError
+
+基本的に、<tt>Rangeary()</tt> または <tt>Rangeary.new()</tt> は、任意
+の数の {Range}、{RangeExtd}、{Rangeary} あるいはその組合わせを引数とし
+て取ります。ただし、{Range}クラスのオブジェクトで {Range#valid?} が偽
+を返すものは、例外が発生します。
+
+さらなる解説及び例は、{Rangeary.new}を参照して下さい。
+
+
+=== 実践例
+
+   ra.to_a                       # => ["a"<..."d", "g".."h"]
+   ra.cover?("a")                # => false
+   ra.cover?("b")                # => true
+   ra.end                        # => "h"
+   ra.each do |i|
+     print i.begin
+   end    # => self ( "ag" => STDOUT )
+   ra.each_element do |i|
+     print i
+   end    # => self ( "bcgh" => STDOUT )
+
+   rb = Rangeary(6...9, 2..4)    # => [2..4, 6...9]
+   rb + Rangeary(3..7)           # => [2...9]
+   rb - Rangeary(3..7)           # => [2...3, RangeExtd(7,'<...',9)]
+   rb * Rangeary(4..5, 8..10)    # => [4..4, 8...9]
+   rb.negation                   # => [-Float::INFINITY...2, RangeExtd(4,'<...',6), 9..Float::INFINITY]
+
+組込Arrayクラスに含まれるほとんどのメソッドが、たとえば{Array#push}のように
+{Rangeary} がイミュータブルであることに抵触しない限りにおいて、使用可能です。
+
+
+== 詳説
+
+ファイル <tt>rangeary.rb</tt> が読まれた段階で、RangeExtd ライブラリで
+定義される二つのクラス(<tt>RangeExtd</tt> と
+<tt>RangeExtd::Infinity</tt>)に加えて、クラス一つが定義されます。
+
+* Rangeary
+
+
+=== Rangeary クラス
+
+{Rangeary} オブジェクトは、Range や RangeExtd と同様、イミュータブルで
+す。だから、一度インスタンスが生成されると、変化しません。
+
+インスタンスの生成方法は上述の通りです(「使用例」の章)。レンジとして"valid"と見
+なされないインスタンスを生成しようとすると、すなわち {Range#valid?} が
+偽を返すレンジを使おうとすると、例外(<tt>ArgumentError</tt>)が発生し、
+失敗します。
+
+なお、ユーザーは、{Rangeary} インスタンス生成の時、レンジ要素に対応し
+た正負の無限大オブジェクトを付加することができます。デフォルトでは、
+{Float::INFINITY} または {RangeExtd::Infinity::POSITIVE} の類に
+なります。詳しくは {Rangeary.new} を参照下さい。
+
+生成時に複数のレンジが引数として与えられた時、ソートされて保持されます。
+その時、要素のどこかに重複する部分があった時は、論理和として扱われます
+(つまり、単純に足し合わされます)。これはつまり、{Rangeary} が内部的に
+保持するオブジェクトは生成時に与えられたものとは異なる、すなわち
+{#object_id} が異なるかも知れないことを意味します。特に、組込Rangeが引
+数として与えられた時は、常に {RangeExtd} オブジェクトに内部で変換されます。
+
+もし生成時に与えられたレンジのどれかが空、すなわち {Range#empty?} が真
+を返す場合、それらは無視されます。ただし、引数の全てのレンジが空であっ
+た場合は、「最小」のものが残されます。
+
+もし演算の結果として空の{Rangeary}が返される場合、その唯一の要素は
+{RangeExtd::NONE}となり、したがって
+{Rangeary#empty_element?} が真を返します。
+
+そのため、どの Rangeary オブジェクトも、{Rangeary#to_a}.size は常に正
+の値を返し、零を返すことはありません。あるいは、Array から継承した
+{Rangeary#empty?} は常に偽を返します(オブジェクトがレンジとして空かど
+うかをチェックするには、{Rangeary#empty_element?} を使って下さい)。
+   Rangeary(RangeExtd::NONE).empty?          # => false
+   Rangeary(RangeExtd::NONE).empty_element?  # => true
+
+前述のように、ごく一部を除いた全ての Arrayクラスのメソッドがこの
+{Rangeary} クラスに継承されていて、それらは各{RangeExtd}要素に対して
+動作します。ただし、4個のメソッドの挙動が異なります。
+{Rangeary#+} と {Rangeary#*} とは、それぞれ {Rangeary#disjunction} と
+{Rangeary#conjunction} とへのエイリアスとなっています。{Rangeary#===}
+は、全ての{RangeExtd}要素に対して{Range#===}を実行し、それらの一つでも
+真を返せば真を返します。したがって、{Rangeary#===}(RangeExtd(**))は常
+に偽を返します。{Rangeary#flatten} は、全ての{RangeExtd}要素に対して
+{Rangeary#to_a} を実行して、その結果を結合した配列を返します。
+また、[#length] と [#reverse] とは未定義化されています。
+
+{Rangeary#==} と {Rangeary#eql?} は、Arrayと同様に動作します。だから
+  [2..4, 6..8] == Rangeary(2..4, 6..8)  # => true
+も成り立ちます。しかし注意すべきは以下です。
+  [2..4, 6..8] == Rangeary(6..8, 2..4)  # => true
+  [6..8, 2..4] == Rangeary(6..8, 2..4)  # => false
+端的には、標準Arrayとの直接比較は推奨しません。代わりに、
+{Rangeary} オブジェクトと比較して下さい。
+
+レンジ要素に対してではなく、レンジを構成する要素に対して動作する他の
+全てのメソッドは、組込Arrayクラスに同名のメソッドが存在する場合、接尾辞
+<tt>_element</tt> がつきます。たとえば、{Rangeary#size} は、保持する
+{RangeExtd} オブジェクトの数を返し、一方、{Rangeary#size_element}は、
+保持するすべての {RangeExtd}オブジェクトに対して {Range#size} を行った
+その総和を返します。
+   Rangeary(1..3, 5..8).size          # => 2
+   Rangeary(1..3, 5..8).size_element  # => 7
+
+
+== 既知のバグ
+
+* 無し。
+
+このライブラリは Ruby 2.0 以上を必要とします(Ruby 1.9.3 では動くかも
+知れませんが、私は試したことがありません)。
+
+パッケージに含まれている通り、網羅的なテストが実行されています。
+
+
+== 未処理事項
+
+特になし。
+
+
+== 終わりに
+
+このライブラリは、イアン・スチュワート氏が開発した、XMM-Newton望遠鏡用の
+SAS解析ソフトウェア・パッケージに含まれる(数値)複数レンジの
+Fortran90ライブラリにアイデアを得たものです。彼の仕事に感謝します。
+
+しかし、Rubyへの実装は、一筋縄ではいきませんでした。一つには組込Range
+クラスでは始点を除外することができないこと、また一つには Rubyでは数値
+を除いて一般オブジェクトに対しての無限大が定義されていないからです。
+小生の開発した {RangeExtd} によって初めてこのライブラリが可能となりま
+した。これにより、今、比較可能な任意のオブジェクトについて、1次元上の
+レンジの完全性が実現できたことを嬉しく思います。
+
+お楽しみ下さい。
+
+
+== その他
+
+== 著作権他情報
+
+著者::  Masa Sakano < imagine a_t sakano dot co dot uk >
+利用許諾条項:: MIT.
+保証:: 一切無し。
+バージョン:: Semantic Versioning (2.0.0) http://semver.org/
+
