@@ -1,4 +1,9 @@
 -----
+(Version: 0.2.0)
+2014-05-11  Masa Saskano
+ * New method of Rangeary#equiv?(), with the added dependency on range_extd ">= 0.4.0".
+
+-----
 (Version: 0.1.0)
 2014-05-09  Masa Sakano
 

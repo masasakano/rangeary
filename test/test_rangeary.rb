@@ -530,6 +530,7 @@ end
 
 
     def test_in_document
+      assert  Rangeary(RangeExtd(1,"<...",4), 5...8).equiv?(Rangeary(2..3, 5..7))      # => true
       assert_equal 33, Rangeary(2...4, 5..6, 8..9).flatten.reduce(:+)   # => 33
 
       r1 = RangeExtd(?a...?d, true) # => a<...d

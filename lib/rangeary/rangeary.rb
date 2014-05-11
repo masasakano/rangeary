@@ -289,6 +289,25 @@ class Rangeary < Array
   alias :end_element :end
 
 
+  # {Range#equiv?} method, defined in range_extd library, extended to this {Rangeary}.
+  #
+  # @example
+  #    Rangeary(RangeExtd(1,"<...",4), 5...8).equiv?(Rangeary(2..3, 5..7))      # => true
+  #
+  # @param other [Rangeary]
+  def equiv?(other)
+    return false if size() != other.size
+
+    self.zip(other).each do |ear|
+      if ! ear[0].equiv?(ear[1])
+        return false
+      end
+    end
+
+    true
+  end	# def equiv?(other)
+
+
   # Returns the first n elements of the entire range, the same as {Range#first}.
   # 
   # If the argument is not given, this simply calls {Range#begin} for the first
