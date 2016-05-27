@@ -2,7 +2,12 @@
 require 'time'
 require 'optparse'
 
-ChangeLog = './ChangeLog'
+ChangeLog = (Dir.glob("./C*")+Dir.glob("./c*")).grep(%r@^\./changelog.*@i)[0]
+if ChangeLog.empty?
+  warn "ERROR: No ChangeLog is found in the current directory."
+  exit 1
+end
+
 BANNER = <<"__EOF__"
 Usage: ruby #{File.basename($0)} [options]
  In dafault, everything is output to STDOUT.
@@ -20,7 +25,7 @@ __EOF__
 opt = OptionParser.new(BANNER)
 OPTS = {
   :dryrun => true,
-  :author => 'Masa Saskano'
+  :author => 'Masa Sakano'
 }
 
 opt.on('-m MESSAGE', 'message for git commit -a -m') {|v| OPTS[:m] = v}
@@ -108,8 +113,13 @@ end
 
 if OPTS[:commmit]
   
-  ## Checking the version (and date) in *.gemspec
-  if OPTS[:v]
+  ## Checking if Gem
+  hsflag = {
+    :for_gem? => (! Dir.pwd.split('/').grep(/gems?$/i).empty?),
+  }
+
+  ## Checking the version (and date) in *.gemspec, if it is for Gem
+  if OPTS[:v] && hsflag[:for_gem?]
     print "\n======= Checking version consistency ========\n"
     ver4gem = OPTS[:v].sub(/^\D+/,'')
     gemspecsuffix = '.gemspec' 
@@ -135,7 +145,7 @@ if OPTS[:commmit]
             elsif /\.version\s*=\s*(%[qQ])?(\S+)/ =~ line
 #puts "DEBUG:Found version in "+eachf
               hsFlag[:isVersionFound] = true
-              qDeli = $1
+              # qDeli = $1
               verInGemspec = $2
               verInGemspec = strWithinQ(verInGemspec)
               # deli1 = verInGemspec[0]
@@ -240,7 +250,7 @@ if OPTS[:commmit]
     puts 'Running......'
   end
 
-  com1 = "git commit -a -m '" + message + "'"
+  com1 = "git commit -a -m '" + message.gsub(/'/){"\\'"} + "'"	# '
   com2 = 'git tag ' + (OPTS[:v] || '')
 
   puts com1

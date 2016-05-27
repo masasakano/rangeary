@@ -197,8 +197,18 @@ class Rangeary < Array
     self.freeze
   end	# def initialize(*inarall, **opts)
 
+  alias_method :triple_equals_orig, :=== if ! self.method_defined?(:triple_equals_orig)
 
-  alias :triple_equals_orig :===
+  # If self covers the entire range?
+  #
+  def all?
+    rfirst = self[0]
+    ((1 == size) &&
+     (@infinities[:negative] == rfirst.begin) &&
+     (@infinities[:positive] == rfirst.end) &&
+     (!rfirst.exclude_begin?) &&
+     (!rfirst.exclude_end?))
+  end
 
   # True if the inObj is in the range.
   #
@@ -222,8 +232,8 @@ class Rangeary < Array
     return false
   end
 
-  alias :include_element? :===
-  alias :member_element? :===
+  alias_method :include_element?, :===
+  alias_method :member_element?, :===
 
 
   # @return [Object]  The {RangeExtd#begin} of the first {RangeExtd}.
@@ -234,7 +244,7 @@ class Rangeary < Array
       nil	# Should not happen!
     end
   end
-  alias :begin_element :begin
+  alias_method :begin_element, :begin
 
 
   # If inObj is within the ranges, it will return true.
@@ -286,7 +296,7 @@ class Rangeary < Array
       nil
     end
   end
-  alias :end_element :end
+  alias_method :end_element, :end
 
 
   # {Range#equiv?} method, defined in range_extd library, extended to this {Rangeary}.
@@ -423,7 +433,7 @@ class Rangeary < Array
     end
     return true
   end
-  alias :null? :null_element?
+  alias_method :null?, :null_element?
 
 
   # Return the sum of {RangeExtd#size} of all the ranges in the object.
@@ -459,8 +469,8 @@ class Rangeary < Array
     self.class.new(self, inr)
   end
 
-  alias :+ :disjunction
-  alias :| :disjunction		# "|" (plus with Object#eql?) in general, but in this case it is identical.
+  alias_method :+, :disjunction
+  alias_method :|, :disjunction		# "|" (plus with Object#eql?) in general, but in this case it is identical.
 
   # Exclusive Disjunction (XOR) with a Rangeary (or RangeExtd or Range)
   # 
@@ -479,8 +489,8 @@ class Rangeary < Array
     (disjunction(inr)).conjunction(conjunction(inr).negation)
   end
 
-  alias :^   :exclusive_disjunction
-  alias :xor :exclusive_disjunction
+  alias_method :^,   :exclusive_disjunction
+  alias_method :xor, :exclusive_disjunction
 
   # Subtraction.
   #
@@ -490,7 +500,7 @@ class Rangeary < Array
     conjunction( Rangeary.new(r).negation )
   end
 
-  alias :- :subtraction
+  alias_method :-, :subtraction
 
 
   # Conjunction.
@@ -501,8 +511,8 @@ class Rangeary < Array
     self.class.conjunction(self, r)
   end
 
-  alias :& :conjunction
-  alias :* :conjunction
+  alias_method :&, :conjunction
+  alias_method :*, :conjunction
 
 
   # Negation.
@@ -564,7 +574,7 @@ class Rangeary < Array
     Rangeary.new(arran, :positive => @infinities[:positive], :negative => @infinities[:negative])
   end	# def negation()
 
-  alias :~@ :negation
+  alias_method :~@, :negation
 
 
   ####################
@@ -580,6 +590,9 @@ class Rangeary < Array
 
     r1 = Rangeary.new(r1) if ! defined? r1.first_element
     r2 = Rangeary.new(r2) if ! defined? r2.first_element
+    return Rangeary.new(RangeExtd::NONE) if r1.null? || r2.null?
+    return Rangeary.new(r1) if r2.all?
+    return Rangeary.new(r2) if r1.all?
 
     # Getting inherited options (if Rangeary is given) for the later use.
     hsInherited = {}
@@ -848,8 +861,9 @@ class Rangeary < Array
       end
     end
 
-    # It is all empty, hence delete all but one.
+    hsFlag[:found?] = false	# Redundant, but for the sake of readability
     if hsFlag[:empty?]
+      # It is all empty, hence delete all but one.
       hsFlag[:klass] = NilClass if hsFlag[:klass].nil?
       newRanges.delete_if do |er|
         if hsFlag[:found?]
@@ -862,7 +876,8 @@ class Rangeary < Array
         end
       end
     else
-      newRanges.delete_if{ |er| er.empty? }
+      # Deletes all the empty ones.
+      newRanges.delete_if { |er| er.empty? }
     end
 
     newRanges

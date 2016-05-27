@@ -2,12 +2,12 @@
 
 Gem::Specification.new do |s|
   s.name = %q{rangeary}
-  s.version = "0.2.0"
+  s.version = "0.3.0"
   # s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   # s.executables << 'hola'
   # s.bindir = 'bin'
   s.authors = ["Masa Sakano"]
-  s.date = %q{2014-05-11}
+  s.date = %q{2016-05-27}
   s.summary = %q{Rangeary - class to represent any 1-dimensional multiple-range}
   s.description = %q{Rangeary is a sub-class of Array and represents any 1-dimensional multiple-range.  For example, (x<4 and 7<x<=9).  All the standard logical operations, such as negation and conjunction, are supported and can be used with conventional Ruby-style operators.  Each range is represented as RangeExtd class (Extended Range), which is a sub-class of Range and supports exclude-begin and open-ended (to Infinity) ranges, and is downloadable from https://rubygems.org/gems/range_extd}
   # s.email = %q{abc@example.com}

@@ -1,6 +1,12 @@
 -----
+(Version: 0.3.0)
+2016-05-27  Masa Sakano
+ * Fixed a bug *,^,- raises an exception when one of them is #null?  Added a method #add?  Added a file .gitignore in the repository.
+
+-----
 (Version: 0.2.0)
-2014-05-11  Masa Saskano
+2014-05-11  Masa Sakano
+
  * New method of Rangeary#equiv?(), with the added dependency on range_extd ">= 0.4.0".
 
 -----

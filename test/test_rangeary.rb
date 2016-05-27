@@ -52,7 +52,7 @@ end
 #################################################
 
 #if $0 == __FILE__
-  require 'minitest/unit'
+  # require 'minitest/unit'
   require 'minitest/autorun'
   # MiniTest::Unit.autorun
 
@@ -139,10 +139,13 @@ end
   def RaE(*rest)
     RangeExtd(*rest)
   end
-  T = true
-  F = false
 
-  class TestUnitFoo < MiniTest::Unit::TestCase
+  class TestUnitFoo < MiniTest::Test
+    T = true
+    F = false
+    RaN = Rangeary(RangeExtd::NONE)
+    RaA = Rangeary(RangeExtd::ALL)
+
     def setup
       @ib = 1
       @ie = 6
@@ -238,10 +241,17 @@ end
     def test_disjunction
       # Plus
       rs = Rangeary.new([3..5, -6..-1, -4..-3, 2..4, 8..8])
-      assert_equal [-6..-1, 2..5, 8..8], (rs+rs).to_a
       assert_equal rs, rs+rs
+      assert_equal [-6..-1, 2..5, 8..8], rs.to_a
+      assert_equal rs.to_a,              (rs+rs).to_a
+      assert_equal rs.to_a,              (rs+RaN).to_a
+      assert_equal rs.to_a,              (RaN+rs).to_a
       assert_equal [-6..-1, 2..5, 8..9], (rs+(8..9)).to_a
       assert (rs != (rs+(8..9)))
+      assert_equal RaN, RaN + RaN
+      assert_equal RaA, RaA + RaA
+      assert_equal RaA, RaA + RaN
+      assert_equal RaA, RaN + RaA
     end	# def test_disjunction
 
     def test_minus
@@ -271,6 +281,10 @@ end
       assert_equal [-6..-1, 2...4], (rs-(4..11)).to_a
       #assert_equal [-6..-1, 2..3], (rs-(4..11)).to_a
       assert_equal rs, rs-(-99..-95)
+      assert_equal rs, rs-RaN
+      assert_equal RaN, RaN-rs
+      assert_equal RaN, RaN-RaN
+      assert_equal RaN, RaA-RaA
     end	# def test_minus
 
 
@@ -281,11 +295,12 @@ end
       assert_equal ar[-1],   rs[-1]
       assert_equal ar[1..2], rs[1..2]
       assert_equal ar[0,2],  rs[0,2]
+      assert_equal RangeExtd::NONE, RaN[0]
+      assert_equal nil,             RaN[1]
     end
 
 
     def test_conjunctionRangeExtd
-      t = true
       r38  = RangeExtd(3..8,  :exclude_begin => 1)
       r38e = RangeExtd(3...8, :exclude_begin => 1)
       r39  = RangeExtd(3..9,  :exclude_begin => 1)
@@ -371,8 +386,8 @@ end
       assert_equal (?d..?f), conjRE(?a..?f, ?d..?z)
 
       # Empty
-      assert_equal RangeExtd::NONE, conjRE(RangeExtd(1,1,t,t), 0..8)
-      assert_equal RangeExtd::NONE, conjRE(0..8, RangeExtd(1,1,t,t))
+      assert_equal RangeExtd::NONE, conjRE(RangeExtd(1,1,T,T), 0..8)
+      assert_equal RangeExtd::NONE, conjRE(0..8, RangeExtd(1,1,T,T))
       assert_equal RangeExtd::NONE, conjRE(RangeExtd::NONE, ?a..?d)
       assert_equal RangeExtd::NONE, conjRE(?a..?d, RangeExtd::NONE)
 
@@ -380,7 +395,7 @@ end
       assert_raises(ArgumentError){ conjRE(true..true, true..true) }
       assert_raises(TypeError){ conjRE(1..5, ?a..?d) }
 
-      assert_equal RangeExtd(24...25,t), conjRE(RangeExtd(24..26,t), 24...25)
+      assert_equal RangeExtd(24...25,T), conjRE(RangeExtd(24..26,T), 24...25)
     end
 
 
@@ -402,6 +417,15 @@ end
       assert          rcab.empty_element?
       assert          rcab.null_element?
       assert          rcab.null?
+
+      assert_equal r1,  r1 * Rangeary(RangeExtd::ALL)
+      assert_equal r1,  Rangeary(RangeExtd::ALL) * r1
+
+      assert_equal RaN, r1 * RaN
+      assert_equal RaN, r1 * RaN
+      assert_equal RaN, RaN * r1
+      assert_equal RaN, RaN * RaN
+      assert_equal RaA, RaA * RaA
     end	# def test_conjunctionRangeary
 
 
@@ -438,6 +462,16 @@ end
       assert_equal rc12tobe, rc12
       # Actual: <Rangeary:[-Infinity..1, 3...4, 6<...8, 8<...12, 12<...14, 15...17, 18<..22, 24..26, 28..32, 33..Infinity]>
 
+      assert_equal r1,   r1.disjunction(RaN)
+      assert_equal true, r1.conjunction(RaN).null?
+      assert_equal Rangeary(RangeExtd::ALL), r1.conjunction(RaN).negation
+      assert_equal r1,                 r1 * (r1.conjunction(RaN).negation)
+      assert_equal r1,  r1 ^ RaN
+      assert_equal r1,  RaN ^ r1
+      assert_equal RaN, RaN ^ RaN
+      assert_equal RaA, RaA ^ RaN
+      assert_equal RaA, RaN ^ RaA
+      assert_equal RaN, RaA ^ RaA
     end	# def test_xor
 
 
@@ -446,6 +480,7 @@ end
       assert_equal Rangeary(-inf...3,RangeExtd(8..inf,1)), Rangeary(3..8).negation
       assert_equal Rangeary(-inf...12, RangeExtd(12...14,T), RangeExtd(15,inf,T)), ~Rangeary(12..12, 14..15)
 
+      assert_equal Rangeary(RangeExtd::ALL), ~RaN
     end	# def test_negation
 
 
@@ -483,6 +518,9 @@ end
 
       assert ! Rangeary(?a..?g, ?m..?o, ?r..?z).cover?(?h)
       assert !(r1 === RangeExtd(?a..?g))
+
+      assert  !RaN.cover?('pp')
+      assert  !RaN.cover?(5)
     end
 
     def test_each
@@ -501,6 +539,12 @@ end
         assert_equal(-6, i)
         break
       end
+
+      n = 0
+      rs.each_element do |i|
+        n += 1
+      end
+      assert_equal n, 6+4+2
     end	# def test_each_element
 
 
@@ -527,6 +571,16 @@ end
       assert_equal 2, Rangeary(1...4, RangeExtd(6...9,T)).size
       assert_equal 5, Rangeary(1...4, RangeExtd(6...9,T)).size_element
     end	# def test_size_element
+
+
+    def test_hash
+      assert_equal Rangeary(1...4).hash,  Rangeary(1...4).hash
+      assert_equal Rangeary(?a..?c).hash, Rangeary('A'.downcase..?c).hash
+      assert_equal Rangeary(1...4, RangeExtd(6...9,T)).hash, Rangeary(1...4, RangeExtd(6...9,T)).hash
+      assert(Rangeary(1...4).hash != (1...4).hash)
+      assert(Rangeary(1...4).hash != Rangeary(1..4).hash)
+      assert(Rangeary(1...4, RangeExtd(6...9,F)).hash != Rangeary(1...4, RangeExtd(6...9,T)).hash)
+    end	# def test_hash
 
 
     def test_in_document
