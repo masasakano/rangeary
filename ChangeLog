@@ -1,4 +1,14 @@
 -----
+(Version: 1.0)
+2019-11-01  Masa Sakano
+  * Release of Ver.1! Fully compatible of Endless Range introduced in Ruby 2.6.
+  * requiring RangeExtd Ver.1.1 or later.
+  * Now requiring Ruby-2.1.
+  * The method infinities is now written explicitly, as opposed to attr_reader.
+  * Class method comparable_end is added.
+  * Major refactoring in the initialisation routine and Array#== .
+
+-----
 (Version: 0.3.0)
 2016-05-27  Masa Sakano
  * Fixed a bug *,^,- raises an exception when one of them is #null?  Added a method #add?  Added a file .gitignore in the repository.

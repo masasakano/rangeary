@@ -145,6 +145,9 @@ end
     F = false
     RaN = Rangeary(RangeExtd::NONE)
     RaA = Rangeary(RangeExtd::ALL)
+    InfF = Float::INFINITY
+    InfP = RangeExtd::Infinity::POSITIVE
+    InfN = RangeExtd::Infinity::NEGATIVE
 
     def setup
       @ib = 1
@@ -167,8 +170,48 @@ end
     end
 
 
+    def test__get_infinities
+      rn = Rangeary.new
+      hs = rn.instance_eval{_get_infinities [(77..78)], guess_strict: false}
+      assert_equal(-InfF, hs[:negative])
+      assert_equal( InfF, hs[:positive])
+      hs = rn.instance_eval{_get_infinities [(77...InfF)], guess_strict: false}
+      assert_equal(-InfF, hs[:negative])
+      assert_equal( InfF, hs[:positive])
+      hs = rn.instance_eval{_get_infinities [(-InfF..78)], guess_strict: false}
+      assert_equal(-InfF, hs[:negative])
+      assert_equal( InfF, hs[:positive])
+      hs = rn.instance_eval{_get_infinities [(77...InfF)], guess_strict: true}
+      assert_nil  hs[:negative]
+      assert_equal( InfF, hs[:positive])
+    end
+
+    def test_comparable_end
+      assert_equal 3,    Rangeary.comparable_end(0...3)
+      assert_equal InfF, Rangeary.comparable_end(0...Float::INFINITY)
+      assert_nil         Rangeary.comparable_end(RangeExtd::NONE)
+      _ = nil..nil  rescue return  # nil..nil may raise Exception in some Ruby versions
+      assert_nil         Rangeary.comparable_end(nil..nil)
+      _ = nil...nil rescue return  # nil..nil may raise Exception in some Ruby versions
+      assert_nil         Rangeary.comparable_end(nil...nil)
+    end
+
     def test_sort_ranges
       assert_equal [RangeExtd::NONE, 2..5, RangeExtd(2..5,9), 3..5, 3...6, 3..6], Rangeary.sort_ranges(RangeExtd(2..5,9), 2..5,3..6,3...6,3..5,RangeExtd::NONE)
+
+      inf = Float::INFINITY
+      ra1 = RangeExtd(5,  inf, false, false)  # (5..inf)
+      ra2 = RangeExtd(5,  inf, false, true)   # (5...inf)
+      assert_equal [(5..9), ra2, ra1],   Rangeary.sort_ranges(ra1, ra2,  (5..9))
+
+      inf = RangeExtd::Infinity::POSITIVE
+      ra1 = RangeExtd(?a, inf, false, false)  # (?a..inf)
+      ra2 = RangeExtd(?a, inf, false, true)   # (?a...inf)
+      assert_equal [(?a..?d), ra2, ra1], Rangeary.sort_ranges(ra1, ra2, (?a..?d))
+
+      # Ruby 2.6 Endless Range
+      assert_equal [(5..9),   (5...nil),  (5..nil)],  Rangeary.sort_ranges((5..nil),  (5...nil),  (5..9))
+      assert_equal [(?a..?d), (?a...nil), (?a..nil)], Rangeary.sort_ranges((?a..nil), (?a...nil), (?a..?d))
     end	# def test_sort_ranges
 
     def test_new
@@ -180,8 +223,8 @@ end
       assert_raises(NoMethodError){ Rangeary.new(3..5).reverse }	# => undefined method `reverse' for <Rangeary:[3..5]>:Rangeary
       assert_raises(RuntimeError){  Rangeary.new(3..5).reverse! }	# => can't modify frozen Rangeary
       assert_raises(ArgumentError){ Rangeary.new(3..5, nil..nil) }	# => invalid parameter for RangeExtd, hence for Rangeary (nil..nil).
-      assert_raises(ArgumentError){ Rangeary.new(3..5, 3..1) }	# => invalid parameter
-      assert_raises(ArgumentError){ Rangeary.new(3..5, 4...4) }	# => invalid parameter
+      assert_raises(ArgumentError){ Rangeary.new(3..5, 3..1) }	# => invalid parameter for RangeExtd
+      assert_raises(ArgumentError){ Rangeary.new(3..5, 4...4) }	# => invalid parameter for RangeExtd
     end	# def test_new
 
     def test_new_infinity
@@ -191,10 +234,31 @@ end
       r1 = RangeExtd(-Float::INFINITY...6)
       r2 = RangeExtd(2,Float::INFINITY,9)
       r3 = RangeExtd(18,Float::INFINITY,9)
-      assert_equal [RangeExtd::ALL], Rangeary(r1,r2).to_a
+      # assert_equal [RangeExtd::ALL], Rangeary(r1,r2).to_a  # Before Ver.1
+      assert_equal [-InfF..InfF], Rangeary(r1,r2).to_a
       assert ! Rangeary(r1,r2).to_a[0].is_all?
       assert_equal [-Float::INFINITY...8, RangeExtd(8..10,9), r3], Rangeary(r1,5...8,RangeExtd(8..9,9),9..10,r3).to_a
+
+      r4 = RangeExtd(InfN...?h)
+      r5 = RangeExtd(?c, InfP, T)
+      assert_equal [RangeExtd::ALL], Rangeary(r4,r5).to_a
+
+      assert_equal [r1], Rangeary(r1,(-InfF..-InfF))
+      assert_equal [r1], Rangeary(r1,(InfF..InfF))
     end	# def test_new_infinity
+
+    def test_endless_range
+      begin
+        _ = 7..nil
+      rescue
+        return # before Ruby 2.6
+      end
+      assert_equal [2..Float::INFINITY], Rangeary(2..8, 3..Float::INFINITY).to_a
+      assert_equal [2..nil],  Rangeary(2..8, RangeExtd(3..nil)).to_a
+      assert_equal [2..nil],  Rangeary(2..8, 3..nil).to_a
+      assert_equal [2...nil], Rangeary(8...nil, 2...4, 4..9).to_a
+      assert_equal [2...nil], Rangeary(8...nil, 2...4, 4..9)
+    end
 
     def test_new_none	# Essentially, the tests of compact()
       ra = Rangeary(RangeExtd::NONE, RangeExtd::NONE, RangeExtd::NONE)
@@ -222,8 +286,8 @@ end
       ra = Rangeary(-6.3..-1, 2..5, 8..8)
       assert_equal(-6.3, ra.begin)
       ra = Rangeary(RangeExtd::NONE)
-      assert_equal nil, ra.begin
-      assert_equal nil, ra.end
+      assert_nil  ra.begin
+      assert_nil  ra.end
       ra = Rangeary(RangeExtd::ALL)
       assert_equal RangeExtd::Infinity::NEGATIVE, ra.begin
       assert_equal RangeExtd::Infinity::POSITIVE, ra.end
@@ -252,6 +316,11 @@ end
       assert_equal RaA, RaA + RaA
       assert_equal RaA, RaA + RaN
       assert_equal RaA, RaN + RaA
+
+      # Eendless Range since Ruby 2.6
+      _ = 7..nil rescue return # before Ruby 2.6
+      assert_equal [-6..-1, 2..5, 8...nil], rs+(8...nil)
+      assert_equal [-6..-1, 2..5, 8..nil],  Rangeary(8..nil)+rs
     end	# def test_disjunction
 
     def test_minus
@@ -285,8 +354,45 @@ end
       assert_equal RaN, RaN-rs
       assert_equal RaN, RaN-RaN
       assert_equal RaN, RaA-RaA
+
+      # Eendless Range since Ruby 2.6
+      _ = 7..nil rescue return # before Ruby 2.6
+      assert_equal [-6..-1, 2...4], rs-(4...nil)
+      rr = Rangeary(6..nil)
+      assert_equal [8..nil],  rr-(6...8)
+      assert_equal [6...7],   rr-(7...nil)
+      rr = Rangeary(6..9, 8..nil)
+      assert_equal [8..nil],  rr-(6...8)
     end	# def test_minus
 
+    # Array#equal overwritten.
+    def test_equal_array
+      rany = Rangeary(4..nil)
+      assert_equal rany, [4..nil]
+      assert_equal [4..nil], rany
+      refute_equal rany, (4..nil)
+
+      rany2 = Rangeary(1..2, 4..nil)
+      refute_equal rany2, Rangeary(0..2, 4..nil)
+      refute_equal rany2, [1..2, 9]
+      refute_equal rany2, Rangeary(1..2, 4..8)
+
+      assert_equal Rangeary(RangeExtd::NONE), []
+      assert_equal [], Rangeary(RangeExtd::NONE)
+      assert_equal Rangeary(RangeExtd::NONE), [RangeExtd::NONE]
+      assert_equal [RangeExtd::NONE], Rangeary(RangeExtd::NONE)
+      refute_equal rany, []
+      refute_equal [], rany
+
+      assert_equal rany, [4..InfF]
+      assert_equal rany, [4...InfF]
+      assert_equal [4...InfF], rany
+      assert_equal rany2, Rangeary(1..2, 4..InfF)
+      assert_equal rany2, [1..2, 4..InfF]
+      assert_equal [1..2, 4..InfF], rany2
+      assert_equal Rangeary(?a..), [?a..InfP]
+      assert_equal [?a..InfP], Rangeary(?a..)
+    end
 
     def test_brackets
       # Square Brackets
@@ -296,7 +402,7 @@ end
       assert_equal ar[1..2], rs[1..2]
       assert_equal ar[0,2],  rs[0,2]
       assert_equal RangeExtd::NONE, RaN[0]
-      assert_equal nil,             RaN[1]
+      assert_nil                    RaN[1]
     end
 
 
@@ -311,10 +417,10 @@ end
       r59e = RangeExtd(5...9, :exclude_begin => 1)
 
       # Lower exclusive
-      assert_equal nil,    conjRE(1..3,  5..9).begin
-      assert_equal nil,    conjRE(1...5, 5..9).begin
-      assert_equal nil,    conjRE(1..5,  r59).begin
-      assert_equal nil,    conjRE(1...5, r59).begin
+      assert_nil           conjRE(1..3,  5..9).begin
+      assert_nil           conjRE(1...5, 5..9).begin
+      assert_nil           conjRE(1..5,  r59).begin
+      assert_nil           conjRE(1...5, r59).begin
       assert_equal (5..5), conjRE(1..5,  5..9)
 
       # Lower overlap
@@ -374,13 +480,13 @@ end
 
       # Higher exclusive (almost)
       assert_equal (5..5), conjRE(5..9,  1..5)
-      assert_equal nil,    conjRE(5..9,  1...5).begin
-      assert_equal nil,    conjRE(r59,   1..5).begin
-      assert_equal nil,    conjRE(r59,   1...5).begin
+      assert_nil           conjRE(5..9,  1...5).begin
+      assert_nil           conjRE(r59,   1..5).begin
+      assert_nil           conjRE(r59,   1...5).begin
 
       # Higher exclusive (almost)
-      assert_equal nil,    conjRE(5..9,  1..3).begin
-      assert_equal nil,    conjRE(r59,   1...4).begin
+      assert_nil           conjRE(5..9,  1..3).begin
+      assert_nil           conjRE(r59,   1...4).begin
 
       # String
       assert_equal (?d..?f), conjRE(?a..?f, ?d..?z)
@@ -392,7 +498,7 @@ end
       assert_equal RangeExtd::NONE, conjRE(?a..?d, RangeExtd::NONE)
 
       # Invalid
-      assert_raises(ArgumentError){ conjRE(true..true, true..true) }
+      assert_raises(RangeError){ conjRE(true..true, true..true) } # => invalid parameter for RangeExtd
       assert_raises(TypeError){ conjRE(1..5, ?a..?d) }
 
       assert_equal RangeExtd(24...25,T), conjRE(RangeExtd(24..26,T), 24...25)
@@ -426,10 +532,15 @@ end
       assert_equal RaN, RaN * r1
       assert_equal RaN, RaN * RaN
       assert_equal RaA, RaA * RaA
+
+      # Eendless Range since Ruby 2.6
+      _ = 7..nil rescue return # before Ruby 2.6
+      r3 = Rangeary(1...9, 12..nil)
+      assert_equal [8...9, 12...13], r3 * Rangeary(8...13)
     end	# def test_conjunctionRangeary
 
 
-    def test_combinations
+    def test_comjunction
       t = true
       inf = Float::INFINITY
 
@@ -445,6 +556,12 @@ end
       assert_equal Rangeary(-inf...12, RangeExtd(12...14,t), RangeExtd(15,inf,t)), Rangeary.conjunction(Rangeary(8..12, 14..15), 12..15).negation
       assert_equal Rangeary(8...12, RangeExtd(12...14,t)), Rangeary(8..12,14..15).xor(12..15)
       assert_equal Rangeary(RangeExtd::NONE), Rangeary.conjunction(RangeExtd(24..26,t), 24...25)
+
+      # Eendless Range since Ruby 2.6
+      _ = 7..nil rescue return # before Ruby 2.6
+      r3 = Rangeary(9..11)
+      assert_equal [8..nil],  r3 + Rangeary(8..nil)
+      assert_equal [8..InfF], r3 + Rangeary(8..nil)
     end
 
 
@@ -481,6 +598,12 @@ end
       assert_equal Rangeary(-inf...12, RangeExtd(12...14,T), RangeExtd(15,inf,T)), ~Rangeary(12..12, 14..15)
 
       assert_equal Rangeary(RangeExtd::ALL), ~RaN
+
+      # Eendless Range since Ruby 2.6
+      _ = 7..nil rescue return # before Ruby 2.6
+      assert_equal Rangeary(-InfF...8), ~Rangeary(8...nil)
+      assert_equal Rangeary(-InfF..8),  ~Rangeary(RangeExtd(8..nil, exclude_begin: true))
+      assert_equal Rangeary(InfN...?a), ~Rangeary(?a..nil)
     end	# def test_negation
 
 
@@ -488,24 +611,27 @@ end
       inf = RangeExtd::Infinity::POSITIVE
       assert_equal Rangeary(?a...?d, ?x..?z),  ~Rangeary(?d...?x, :negative => ?a, :positive => ?z)
       assert_equal Rangeary(?a...?d, ?x..inf), ~Rangeary(?d...?x, :negative => ?a) 
-      assert_raises(ArgumentError){ Rangeary(?a..?z,  :negative => -Float::INFINITY) }
+      assert_raises(ArgumentError){ Rangeary(?t..?z,  :negative => -Float::INFINITY) }
       assert_raises(ArgumentError){ Rangeary(1...8.5, :negative => ?a) }
                                 _ = Rangeary(1...8.5, :positive => inf)	# => No error.
 
-      ra = Rangeary(?d...?f,      :negative => ?a) 
+      ra = Rangeary(?d...?f,      :negative => ?a)
       rb = Rangeary(?g..?h, ?j...?m)
       rc = ra + rb
       rd = rb | ra
       re = Rangeary(?e...?k, :positive => ?z)
       rf = rd & re
-      assert_equal  ?a, ra.infinities[:negative]
-      assert_equal inf, ra.infinities[:positive]
-      assert_equal  ?a, rc.infinities[:negative]
-      assert_equal inf, rc.infinities[:positive]
-      assert_equal  ?a, rd.infinities[:negative]
-      assert_equal inf, rd.infinities[:positive]
-      assert_equal  ?a, rf.infinities[:negative]
-      assert_equal  ?z, rf.infinities[:positive]
+      rg = re & rd
+      assert_equal   ?a, ra.infinities[:negative]
+      assert_equal  inf, ra.infinities[:positive]
+      assert_equal   ?a, rc.infinities[:negative]
+      assert_equal  inf, rc.infinities[:positive]
+      assert_equal   ?a, rd.infinities[:negative]
+      assert_equal  inf, rd.infinities[:positive]
+      assert_equal   ?a, rf.infinities[:negative]
+      assert_equal   ?z, rf.infinities[:positive]
+      assert_equal   ?a, rg.infinities[:negative]
+      assert_equal   ?z, rg.infinities[:positive]
     end	# def test_posinega
 
 
@@ -554,9 +680,9 @@ end
     end	# def test_empty_element
 
 
-    def test_flatten
-      assert [6,7,11], Rangeary(RangeExtd(10...12,T), RangeExtd(5...8,T)).flatten
-      assert_raises(TypeError){ Rangeary( 10...12,    RangeExtd(5.0...8,T)).flatten }
+    def test_flatten_element
+      assert [6,7,11], Rangeary(RangeExtd(10...12,T), RangeExtd(5...8,T)  ).flatten_element
+      assert_raises(TypeError){ Rangeary( 10...12,    RangeExtd(5.0...8,T)).flatten_element }
     end	# def test_flatten
 
 
@@ -585,7 +711,7 @@ end
 
     def test_in_document
       assert  Rangeary(RangeExtd(1,"<...",4), 5...8).equiv?(Rangeary(2..3, 5..7))      # => true
-      assert_equal 33, Rangeary(2...4, 5..6, 8..9).flatten.reduce(:+)   # => 33
+      assert_equal 33, Rangeary(2...4, 5..6, 8..9).flatten_element.reduce(:+)   # => 33
 
       r1 = RangeExtd(?a...?d, true) # => a<...d
       ra = Rangeary(?g..?h, r1)     # => [a<...d, g..h]
@@ -598,7 +724,7 @@ end
       assert_equal 1, Rangeary.new(RangeExtd::NONE, RangeExtd::NONE).size
       assert  Rangeary(RangeExtd::NONE, RangeExtd::NONE).empty_element?
       assert_equal [1...7], Rangeary(RangeExtd::NONE, 1..5, 3...7)  # => [1...7]
-      assert_raises(ArgumentError){ Rangeary(true..true) }
+      assert_raises(ArgumentError){ Rangeary(true..true) } # => invalid parameter for RangeExtd
 
       #assert_equal %w(b c g h), ra.to_a
       assert_equal [RangeExtd(?a...?d,T), ?g..?h], ra.to_a
