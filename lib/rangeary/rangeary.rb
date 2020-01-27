@@ -29,8 +29,8 @@ end	# req_files.each do |req_file|
 
 
 
-def Rangeary(*rest)
-  Rangeary.new(*rest)
+def Rangeary(*rest, **hs)
+  Rangeary.new(*rest, **hs)
 end
 
 # =Class Rangeary < Array
@@ -622,7 +622,7 @@ class Rangeary < Array
     # Initialisation
     a1 = r1.to_a
     a2 = r2.to_a
-    rc = Rangeary.new( RangeExtd::NONE, hsInherited )
+    rc = Rangeary.new( RangeExtd::NONE, **hsInherited )
 
     if a1.empty? || a2.empty?
       return rc

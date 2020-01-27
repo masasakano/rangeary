@@ -5,12 +5,12 @@ require 'date'
 
 Gem::Specification.new do |s|
   s.name = %q{rangeary}.sub(/.*/){|c| (c == File.basename(Dir.pwd)) ? c : raise("ERROR: s.name=(#{c}) in gemspec seems wrong!")}
-  s.version = "1.0"
+  s.version = "1.0.1"
   # s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   # s.executables << 'hola'
   # s.bindir = 'bin'
   s.authors = ["Masa Sakano"]
-  s.date = %q{2019-11-01}.sub(/.*/){|c| (Date.parse(c) == Date.today) ? c : raise("ERROR: s.date=(#{c}) is not today!")}
+  s.date = %q{2020-01-27}.sub(/.*/){|c| (Date.parse(c) == Date.today) ? c : raise("ERROR: s.date=(#{c}) is not today!")}
   s.summary = %q{Rangeary - class to represent any 1-dimensional multiple-range}
   s.description = %q{Rangeary is a sub-class of Array and represents any 1-dimensional multiple-range.  For example, (x<4 and 7<x<=9).  All the standard logical operations, such as negation and conjunction, are supported and can be used with conventional Ruby-style operators.  Each range is represented as RangeExtd class (Extended Range), which is a sub-class of Range and supports exclude-begin and open-ended (to Infinity) ranges, and is downloadable from https://rubygems.org/gems/range_extd}
   # s.email = %q{abc@example.com}
@@ -40,7 +40,7 @@ Gem::Specification.new do |s|
   s.rdoc_options = ["--charset=UTF-8"]
 
   # s.require_paths = ["lib"]
-  s.required_ruby_version = '>= 2.1'
+  s.required_ruby_version = '>= 2.1'  # required >= 2.6 for testing.
   s.test_files = Dir['test/**/*.rb']
   s.test_files.reject! { |fn| File.symlink? fn }
   # s.requirements << 'libmagick, v6.0'	# Simply, info to users.

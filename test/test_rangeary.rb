@@ -390,7 +390,7 @@ end
       assert_equal rany2, Rangeary(1..2, 4..InfF)
       assert_equal rany2, [1..2, 4..InfF]
       assert_equal [1..2, 4..InfF], rany2
-      assert_equal Rangeary(?a..), [?a..InfP]
+      assert_equal Rangeary(?a..), [?a..InfP] # This raises the uncapturable SyntaxError for Ruby 2.5 and before anyway.
       assert_equal [?a..InfP], Rangeary(?a..)
     end
 

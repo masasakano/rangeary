@@ -1,4 +1,9 @@
 -----
+(Version: 1.0.1)
+2020-01-27  Masa Sakano
+  * Fixed warnings with Ruby-2.7. A bug for Ruby-2.7 only still remains.
+
+-----
 (Version: 1.0)
 2019-11-01  Masa Sakano
   * Release of Ver.1! Fully compatible of Endless Range introduced in Ruby 2.6.

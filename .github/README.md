@@ -309,7 +309,11 @@ The last example above shows how it works.
 
 ## Known bugs
 
-*   None is known.
+*   To suppress warnings in Ruby-2.7,
+    [RangeExtd](https://rubygems.org/gems/range_extd) must be Ver.1.1.1 or
+    later.
+*   `Rangeary.new(-6..-5, 2..5, 8..8).last_element(3)` returns
+        <tt>[3, 4, 5]</tt> wrongly in Ruby-2.7 but correctly in Ruby-2.6.x or earlier.
 
 
 This library requires Ruby 2.1 or above (it may work all right with Ruby
@@ -611,7 +615,10 @@ Rangeとは、他のパラメーター(例えば始端や`exclude_end`)が等し
 
 ## 既知のバグ
 
-*   無し。
+*   Ruby-2.7 で警告を出さないためには、[RangeExtd](https://rubygems.org/gems/range_extd)
+    は、Ver.1.1.1 以上であること。
+*   `Rangeary.new(-6..-5, 2..5, 8..8).last_element(3)` は、
+        Ruby-2.6.x 以前は正しい値を返すが、Ruby-2.7 ではなぜか <tt>[3, 4, 5]</tt> と誤った値を返す。
 
 
 このライブラリは Ruby 2.1 以上を必要とします。
