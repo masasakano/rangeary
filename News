@@ -1,4 +1,8 @@
 -----
+(Version: 2.0) 2022-09-04
+ * Release of Version 2.0. Library path changed. Beginless Range in Ruby 2.7 is supported for range_extd '>= 2'
+
+-----
 (Version: 1.0) 2019-11-01
  * Release of Version 1.0.  Endless Range in Ruby 2.6 is supported for range_extd '>= 1.1'
 

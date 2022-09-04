@@ -1,50 +1,66 @@
 # -*- encoding: utf-8 -*-
 
+require 'tempfile'
+require_relative "tee_io.rb"
+
 $stdout.sync=true
 $stderr.sync=true
-# print '$LOAD_PATH=';p $LOAD_PATH
-arlibrelpath = []
+print "$LOAD_PATH=#{$LOAD_PATH}" if $DEBUG
 arlibbase = %w(rangeary)
 
-arlibbase.each do |elibbase|
-  #elibbase
+arlibrelbase = arlibbase.map{|i| "../lib/"+i}
 
-  arAllPaths = []
-  er=nil
-  pathnow = nil
-  (['../lib/', 'lib/', ''].map{|i| i+elibbase+'/'} + ['']).each do |dir|
-    # eg., pathcand = %w(../lib/rangesmaller/ lib/rangesmaller/ rangesmaller/) + ['']
-    begin
-      s = dir+File.basename(elibbase)
-      arAllPaths.push(s)
-#print "Trying: "; puts s
-      require s
-      pathnow = s
-      break
-    rescue LoadError => er
-    end
-  end	# (['../lib/', 'lib/', ''].map{|i| i+elibbase+'/'} + '').each do |dir|
-
-  if pathnow.nil?
-    warn "Warning: All the attempts to load the following files have failed.  Abort..."
-    warn arAllPaths.inspect
-    warn " NOTE: It may be because a require statement in that file failed, 
-rather than requiring the file itself.
- Check with  % ruby -r#{File.basename(elibbase)} -e p
- or maybe add  env RUBYLIB=$RUBYLIB:`pwd`"
-    # p $LOADED_FEATURES.grep(/#{Regexp.quote(File.basename(elibbase)+'.rb')}$/)
-    raise er
-  else
-#print pathnow," is loaded!\n"
-    arlibrelpath.push pathnow
-  end
+arlibrelbase.each do |elibbase|
+  require_relative elibbase
 end	# arlibbase.each do |elibbase|
 
-print "NOTE: Library relative paths: "; p arlibrelpath
-print "NOTE: Library full paths:\n"
-arlibbase.each do |elibbase|
-  p $LOADED_FEATURES.grep(/#{Regexp.quote(File.basename(elibbase)+'.rb')}$/)
+#arlibrelpath = []
+#arlibbase.each do |elibbase|
+#  #elibbase
+#
+#  arAllPaths = []
+#  er=nil
+#  pathnow = nil
+#  (['../lib/', 'lib/', ''].map{|i| i+elibbase+'/'} + ['']).each do |dir|
+#    # eg., pathcand = %w(../lib/rangesmaller/ lib/rangesmaller/ rangesmaller/) + ['']
+#    begin
+#      s = dir+File.basename(elibbase)
+#      arAllPaths.push(s)
+##print "Trying: "; puts s
+#      require s
+#      pathnow = s
+#      break
+#    rescue LoadError => er
+#    end
+#  end	# (['../lib/', 'lib/', ''].map{|i| i+elibbase+'/'} + '').each do |dir|
+#
+#  if pathnow.nil?
+#    warn "Warning: All the attempts to load the following files have failed.  Abort..."
+#    warn arAllPaths.inspect
+#    warn " NOTE: It may be because a require statement in that file failed, 
+#rather than requiring the file itself.
+# Check with  % ruby -r#{File.basename(elibbase)} -e p
+# or maybe add  env RUBYLIB=$RUBYLIB:`pwd`"
+#    # p $LOADED_FEATURES.grep(/#{Regexp.quote(File.basename(elibbase)+'.rb')}$/)
+#    raise er
+#  else
+##print pathnow," is loaded!\n"
+#    arlibrelpath.push pathnow
+#  end
+#end	# arlibbase.each do |elibbase|
+
+print "NOTE: Library relative paths: "; p arlibrelbase
+arlibbase4full = arlibbase.map{|i| i.sub(%r@^(../)+@, "")}+%w(range_extd)
+puts  "NOTE: Library full paths for #{arlibbase4full.inspect}: "
+arlibbase4full.each do |elibbase|
+  ar = $LOADED_FEATURES.grep(/(^|\/)#{Regexp.quote(File.basename(elibbase))}(\.rb)?$/).uniq
+  print elibbase+": " if ar.empty?; p ar
 end
+#print "NOTE: Library relative paths: "; p arlibrelpath
+#print "NOTE: Library full paths:\n"
+#arlibbase.each do |elibbase|
+#  p $LOADED_FEATURES.grep(/#{Regexp.quote(File.basename(elibbase)+'.rb')}$/)
+#end
 
 
 #################################################
@@ -191,9 +207,38 @@ end
       assert_equal InfF, Rangeary.comparable_end(0...Float::INFINITY)
       assert_nil         Rangeary.comparable_end(RangeExtd::NONE)
       _ = nil..nil  rescue return  # nil..nil may raise Exception in some Ruby versions
-      assert_nil         Rangeary.comparable_end(nil..nil)
-      _ = nil...nil rescue return  # nil..nil may raise Exception in some Ruby versions
-      assert_nil         Rangeary.comparable_end(nil...nil)
+      #assert_nil         Rangeary.comparable_end(nil..nil)  # Ruby-2.6
+      assert_equal InfP, Rangeary.comparable_end(nil..nil)
+      assert_equal InfP, Rangeary.comparable_end(nil...nil)
+    end
+
+    # Since Ruby-2.7
+    def test_comparable_beginend
+      assert_raises(RangeError){Rangeary.comparable_beginend(RangeExtd::Nowhere::NOWHERE..RangeExtd::Nowhere::NOWHERE) }	# ! Range#valid?
+      assert_raises(RangeError){Rangeary.comparable_beginend(?a...?a) }	# because !Range#valid?
+      assert_equal RaE(5...9),        Rangeary.comparable_beginend(5...9)
+      assert_equal RaE(?a..?b, true), Rangeary.comparable_beginend(RaE(?a, ?b, true))
+      assert_equal RaE(?a..?b, true), Rangeary.comparable_beginend(RaE(?a, ?b, true))
+      assert_equal RaE(InfN...InfP),  Rangeary.comparable_beginend(...nil)
+      assert_equal RaE(-InfF...9.3, T), Rangeary.comparable_beginend(RaE(...9.3, true))
+      assert_equal RaE(9.3..InfF),  Rangeary.comparable_beginend(9.3..)
+      assert_equal RaE(?a...InfP),  Rangeary.comparable_beginend(?a...)
+      
+      # infinities are given.
+      hsinf = {negative: ?a, positive: ?z}
+      assert_equal RangeExtd(?b...?z),   Rangeary.comparable_beginend(?b..., infinities: hsinf)
+      assert_equal RangeExtd(?a..?d, T), Rangeary.comparable_beginend(RaE(..?d, T), infinities: hsinf)
+
+      # instance-method version
+      ran = RaE(..?d, T)
+      rangy = Rangeary(ran, **hsinf)
+      assert_equal RaE(?a..?d, T), rangy.send(:_comparable_beginend, ran)
+
+      ran = RaE(?c.., T)
+      rangy = Rangeary(RaE(?c.., T), **hsinf)
+      assert_equal RangeExtd(?c..?z, T),   rangy.send(:_comparable_beginend, ran)
+      rangy = Rangeary(RaE(?c.., T))
+      assert_equal RaE(?c..InfP, T), rangy.send(:_comparable_beginend, ran)
     end
 
     def test_sort_ranges
@@ -212,6 +257,15 @@ end
       # Ruby 2.6 Endless Range
       assert_equal [(5..9),   (5...nil),  (5..nil)],  Rangeary.sort_ranges((5..nil),  (5...nil),  (5..9))
       assert_equal [(?a..?d), (?a...nil), (?a..nil)], Rangeary.sort_ranges((?a..nil), (?a...nil), (?a..?d))
+
+      # Ruby 2.7 Beginless Range
+      ran = RangeExtd(nil...5, T)
+      assert_equal [(nil..5),  ran, (1..5)  ], Rangeary.sort_ranges((1..5),   ran,  (..5))
+      ran = RangeExtd(nil...?d, T)
+      assert_equal [(nil..?d), ran, (?b..?d)], Rangeary.sort_ranges(ran, (?b..?d), (..?d))
+      assert_equal [(nil..?d), ran, (?b..?d)], Rangeary.sort_ranges(ran, (?b..?d), (..?d))
+      ran = RangeExtd(..9, T)
+      assert_equal RangeExtd::NONE,  Rangeary.sort_ranges(RaA, ran, RaN)[0]
     end	# def test_sort_ranges
 
     def test_new
@@ -222,9 +276,15 @@ end
 
       assert_raises(NoMethodError){ Rangeary.new(3..5).reverse }	# => undefined method `reverse' for <Rangeary:[3..5]>:Rangeary
       assert_raises(RuntimeError){  Rangeary.new(3..5).reverse! }	# => can't modify frozen Rangeary
-      assert_raises(ArgumentError){ Rangeary.new(3..5, nil..nil) }	# => invalid parameter for RangeExtd, hence for Rangeary (nil..nil).
+      #assert_raises(ArgumentError){ Rangeary.new(3..5, nil..nil) }	# => invalid parameter for RangeExtd, hence for Rangeary (nil..nil).
+      assert_equal([..nil], Rangeary.new(3..5, nil..nil).to_a)	# used to be an invalid parameter for RangeExtd, hence for Rangeary, too, before Ruby-2.7.
       assert_raises(ArgumentError){ Rangeary.new(3..5, 3..1) }	# => invalid parameter for RangeExtd
       assert_raises(ArgumentError){ Rangeary.new(3..5, 4...4) }	# => invalid parameter for RangeExtd
+      assert_raises(ArgumentError){ Rangeary(?d..?f, negative: ?a, positive: ?b) }	# => negative-infinity is larger than ?d
+      assert_raises(ArgumentError){ Rangeary(?d..?f, negative: ?e, positive: ?z) }	# => negative-infinity is larger than ?d
+      assert_raises(ArgumentError){   Rangeary(?b..?d, ?f...?h, ?g...?j, negative: ?b, positive: ?i) }
+      assert_equal [?b..?d, ?f...?j], Rangeary(?b..?d, ?f...?h, ?g...?j, negative: ?b, positive: ?j).to_a
+      assert_raises(ArgumentError){ Rangeary(RangeExtd::NONE, negative: ?c, positive: ?a) }  # negative is smaller than positive infinities
     end	# def test_new
 
     def test_new_infinity
@@ -258,6 +318,27 @@ end
       assert_equal [2..nil],  Rangeary(2..8, 3..nil).to_a
       assert_equal [2...nil], Rangeary(8...nil, 2...4, 4..9).to_a
       assert_equal [2...nil], Rangeary(8...nil, 2...4, 4..9)
+    end
+
+    def test_beginless_range
+      # This would raise Syntax Error in earlier versions (2.6 or earlier?) of Ruby
+      assert_equal [(-Float::INFINITY)...9], Rangeary((-Float::INFINITY)..7, 3...9).to_a
+      assert_equal [nil..8],  Rangeary(2..8, RaE(nil..3)).to_a
+      assert_equal [nil..8],  Rangeary(2..8, nil..3).to_a
+      assert_equal [nil...9], Rangeary(nil...8, ...9, 4...9).to_a
+      assert_equal [nil..9],  Rangeary(nil...8, ...9, 4..9).to_a
+      assert_equal [nil...9], Rangeary(nil...8, 2...4, 4...9).to_a
+      assert_equal [nil...9], Rangeary(         2...4, 4...9, nil...8)
+      assert_equal [nil..8],  Rangeary(nil...8, 2...4, nil..7)
+      assert_equal [nil..],                    Rangeary(    8..., nil...8)
+      assert_equal [nil...8,    10...],        Rangeary(   10..., nil...8)
+      assert_equal [nil...8, RaE(8.., true)],  Rangeary(RaE(8.., true), nil...8)
+
+      ran = Rangeary(...8, RaE(8.., true))
+      assert_raises(RangeError ){                          ran.last.last }
+      assert_raises(RangeError, "for RAN=#{ran.inspect}"){ ran.last_element }
+      assert_nil                 ran.last.end
+      assert_raises(RangeError, "for RAN=#{ran.inspect}"){ ran.last_element }
     end
 
     def test_new_none	# Essentially, the tests of compact()
@@ -317,10 +398,14 @@ end
       assert_equal RaA, RaA + RaN
       assert_equal RaA, RaN + RaA
 
-      # Eendless Range since Ruby 2.6
+      # Endless Range since Ruby 2.6
       _ = 7..nil rescue return # before Ruby 2.6
       assert_equal [-6..-1, 2..5, 8...nil], rs+(8...nil)
       assert_equal [-6..-1, 2..5, 8..nil],  Rangeary(8..nil)+rs
+
+      # Begindless Range since Ruby 2.7
+      assert_equal [..-1, 2..5, 8..8],  rs+(...(-6))
+      assert_equal [..-1, 2..5, 8..8],  Rangeary(..(-6))+rs
     end	# def test_disjunction
 
     def test_minus
@@ -363,6 +448,9 @@ end
       assert_equal [6...7],   rr-(7...nil)
       rr = Rangeary(6..9, 8..nil)
       assert_equal [8..nil],  rr-(6...8)
+
+      # Begindless Range since Ruby 2.7
+      assert_equal [3..5, 8..9], rs-(...3)
     end	# def test_minus
 
     # Array#equal overwritten.
@@ -537,6 +625,10 @@ end
       _ = 7..nil rescue return # before Ruby 2.6
       r3 = Rangeary(1...9, 12..nil)
       assert_equal [8...9, 12...13], r3 * Rangeary(8...13)
+
+      # Begindless Range since Ruby 2.7
+      r4 = Rangeary(nil..?e, ?t..?y)
+      assert_equal [?d..?e, ?t..?t], r4 * Rangeary(?d..?t)
     end	# def test_conjunctionRangeary
 
 
@@ -562,6 +654,12 @@ end
       r3 = Rangeary(9..11)
       assert_equal [8..nil],  r3 + Rangeary(8..nil)
       assert_equal [8..InfF], r3 + Rangeary(8..nil)
+
+      # Begindless Range since Ruby 2.7
+      r4 = Rangeary(9..11)
+      assert_equal [nil..12],  r4 + Rangeary(nil..12)
+      assert_equal [nil..12], Rangeary(nil..12) + r4
+      assert_equal [nil..11], Rangeary(nil..9) + r4
     end
 
 
@@ -599,11 +697,21 @@ end
 
       assert_equal Rangeary(RangeExtd::ALL), ~RaN
 
-      # Eendless Range since Ruby 2.6
+      # Eendless Range since Ruby 2.6 plus Beginless Range since Ruby 2.7
       _ = 7..nil rescue return # before Ruby 2.6
       assert_equal Rangeary(-InfF...8), ~Rangeary(8...nil)
       assert_equal Rangeary(-InfF..8),  ~Rangeary(RangeExtd(8..nil, exclude_begin: true))
       assert_equal Rangeary(InfN...?a), ~Rangeary(?a..nil)
+      assert_equal Rangeary(RangeExtd(7..InfF, T)), ~Rangeary(-InfF..7)
+      assert_equal Rangeary(RangeExtd(7..InfF, T)), ~Rangeary(..7)
+      assert_equal Rangeary(?c..InfP),              ~Rangeary(...?c)
+      assert_equal Rangeary(RangeExtd::NONE), ~Rangeary(RangeExtd::ALL)
+      assert_equal Rangeary(RangeExtd::NONE), ~Rangeary(InfN...InfP)
+      assert_equal Rangeary(RangeExtd::NONE), ~Rangeary(..nil)
+      assert_equal Rangeary(RangeExtd::NONE), ~Rangeary(...nil)
+      assert_equal Rangeary(RangeExtd::NONE), ~Rangeary(RangeExtd(...nil, true))
+
+      assert_equal Rangeary(?a...?d, ?f..?z), ~Rangeary(?d...?f, negative: ?a, positive: ?z)
     end	# def test_negation
 
 
@@ -615,13 +723,22 @@ end
       assert_raises(ArgumentError){ Rangeary(1...8.5, :negative => ?a) }
                                 _ = Rangeary(1...8.5, :positive => inf)	# => No error.
 
+      ra = rb = rc = rd = re = rf = rg = nil
       ra = Rangeary(?d...?f,      :negative => ?a)
       rb = Rangeary(?g..?h, ?j...?m)
-      rc = ra + rb
-      rd = rb | ra
+      puts "NOTE: Most warnings are suppressed. To display them, set DISPLAY_STDERR=1" if !ENV['DISPLAY_STDERR'] || ENV['DISPLAY_STDERR'].empty?
+      rc = ra + rb  # This raises warning (b/c $VERBOSE==true in testing)
+      TeeIO.suppress_io{|iorw|
+        rd = rb | ra
+        iorw.rewind
+        assert_match(/Inconsistent negative infinit/, iorw.read)
+      }
       re = Rangeary(?e...?k, :positive => ?z)
-      rf = rd & re
-      rg = re & rd
+      TeeIO.suppress_io{|iorw|
+        rf = rd & re
+        rg = re & rd
+      }
+
       assert_equal   ?a, ra.infinities[:negative]
       assert_equal  inf, ra.infinities[:positive]
       assert_equal   ?a, rc.infinities[:negative]
@@ -767,13 +884,6 @@ end
       assert_equal 7, Rangeary(1..3, 5..8).size_element  # => 7
     end	# def test_in_document
 
-
-    ### All false, well, and they should be.
-    # def test_equal
-    #   # Plus
-    #   assert_equal RangeExtd(1..3), RangeExtd(1...4)
-    #   assert_equal Rangeary(1..3),  Rangeary(1...4)
-    # end
 
   end	# class TestUnitFoo < MiniTest::Unit::TestCase
 
