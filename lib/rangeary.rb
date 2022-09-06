@@ -29,8 +29,11 @@ req_files.each do |req_file|
 end	# req_files.each do |req_file|
 puts "DEBUG(#{File.basename(__FILE__)}): Required: #{$LOADED_FEATURES.grep(/(^|\/)#{Regexp.quote(File.basename(req_files[0]))}(\.rb)?$/).inspect}" if $DEBUG
 
+require_relative 'rangeary/util'
 
 def Rangeary(*rest, **hs)
+  # Note: This form (Rangeary(...)) is NOT used inside this file for the sake of searchability.
+  #  The original "Rangeary.new" is used throughout.
   Rangeary.new(*rest, **hs)
 end
 
@@ -58,6 +61,10 @@ end
 #
 class Rangeary < Array
   undef_method :*, :+, :length, :reverse
+
+  # Use Module both for class and instance methods
+  extend  Rangeary::Util
+  include Rangeary::Util
 
   # # Hash with the keys of :negative and :positive  => becomes a method in Ver.1
   # attr_reader :infinities
@@ -215,8 +222,8 @@ class Rangeary < Array
     end
     return if empty_element?
 
-    fmt = "specified %s infinities (%s) are not %s enough or inconsistent."
-    msg = sprintf fmt, "negative", neg.inspect, "small"
+    fmt = "specified/inherited %s infinity (%s) is not %s enough or inconsistent: (<=> %s)"
+    msg = sprintf fmt, "negative", neg.inspect, "small", self.begin.inspect
     begin
       if neg.nil? ||
          false == neg ||
@@ -232,7 +239,7 @@ class Rangeary < Array
         raise ArgumentError, msg
     end
 
-    msg = sprintf fmt, "positive", pos.inspect, "large"
+    msg = sprintf fmt, "positive", pos.inspect, "large", self.end.inspect
     begin
       if pos.nil? ||
          false == pos ||
@@ -682,7 +689,7 @@ class Rangeary < Array
     prevst  = nil
     to_a.each do |eachr|
 
-      # ALL -> NONE
+      # ALL -> NONE (specifying infinity parameters (positive and negative) is important.)
       return Rangeary.new(RangeExtd::NONE, :positive => @infinities[:positive], :negative => @infinities[:negative]) if RangeExtd::ALL == eachr
 
       # null(NONE) -> ALL
@@ -739,7 +746,9 @@ class Rangeary < Array
     end
 #print "DEBUG:262:neg: arran:";p arran
 
-    Rangeary.new(arran, :positive => infinities[:positive], :negative => infinities[:negative])
+    #Rangeary.new(arran, :positive => infinities[:positive], :negative => infinities[:negative])
+    #Rangeary.new(arran)  ################ infinities
+    Rangeary.new(arran, positive: @infinities[:positive], negative: @infinities[:negative])
   end	# def negation()
 
   alias_method :~@, :negation
@@ -760,12 +769,15 @@ class Rangeary < Array
     r1 = Rangeary.new(r1) if ! defined? r1.first_element
     r2 = Rangeary.new(r2) if ! defined? r2.first_element
 #print "DEBUG22:conj: r1,r2=";p [r1, r2]
-    return Rangeary.new(RangeExtd::NONE) if r1.null? || r2.null?
-    return Rangeary.new(r1) if r2.all?
-    return Rangeary.new(r2) if r1.all?
+
+    hsinf = _get_infinities_from_multiple(r1, r2)
+    return Rangeary.new(RangeExtd::NONE, **hsinf) if r1.null? || r2.null?
+    return Rangeary.new(r1, **hsinf) if r2.all?
+    return Rangeary.new(r2, **hsinf) if r1.all?
 
     # Getting inherited options (if Rangeary is given) for the later use.
-    hsInherited = _validate_select_infinities [r1, r2].map(&:infinities)
+    _ = _validate_select_infinities [r1, r2].map(&:infinities)
+    # hsInherited = _validate_select_infinities [r1, r2].map(&:infinities)
     # hsInherited = _best_inherited_infinities [r1, r2].map(&:infinities)
 
 #print "DEBUG31:conj: r1,r2=";p [r1, r2]
@@ -773,7 +785,9 @@ class Rangeary < Array
     a1 = r1.to_a
     a2 = r2.to_a
 #print "DEBUG32:conj: inherit=";p hsInherited
-    rc = Rangeary.new( RangeExtd::NONE, **hsInherited )
+    #rc = Rangeary.new( RangeExtd::NONE, **hsInherited )
+    rc = Rangeary.new( RangeExtd::NONE, **hsinf )  # hsinf is essential to define @infinities
+
 #print "DEBUG33:conj: rc=";p rc
 
     if a1.empty? || a2.empty?
@@ -813,7 +827,7 @@ class Rangeary < Array
         # Core - Perform conjunction.
         pq1 = conjunctionRangeExtd(ea1, ea2)	# => Rangeary.conjunctionRangeExtd()
         if ! pq1.empty?
-          rc += Rangeary.new(pq1)
+          rc += Rangeary.new(pq1)  ################################ infinities?
           last_a1index = ind
         end
       end	# a1.each_with_index do |ea1, ind|
@@ -1082,14 +1096,6 @@ class Rangeary < Array
   private
   ####################
 
-  # Returns the default false infinities.
-  #  
-  # @raise [Hash]
-  def _initialized_infinities
-    {}.merge({negative: false, positive: false})
-  end
-  private :_initialized_infinities
-
   # Called from {Rangeary#initialize}
   def convert2range(inarall)
 #print "DEBUG101:conv: inarall=";p [inarall,inarall[-1].is_none?]
@@ -1226,35 +1232,44 @@ class Rangeary < Array
 
   # Build the instance variable (Hash) @infinities
   #
+  # @param opts [Hash] :positive and :negative Object of infinities.
   # @param arin [Array<Range, RangeExtd, Rangeary>]
   # @param guess_strict [Boolean] if true, make only strict guess for infinities, namely, unless the existing elements contain "infinity"-type objects, leave it false (currently unsupported) (it is passed to {#_best_guessed_infinities}(strict: false) --- currently not used)
-  # @option **opts [Object] :positive Object for positive infinity. In default Float::INFINITY for Numeric Comparable or else +RangeExtd::Infinity::POSITIVE+.
-  # @option **opts [Object] :negative Object for negative infinity. In default -Float::INFINITY for Numeric Comparable or else +RangeExtd::Infinity::NEGATIVE+.
   # @return [Array] guessed @infinities
   def _build_infinities(opts, arin, guess_strict: false)
   # @param inherited_infs [Array<Hash<Infinity, nil>>] Inherited infinities from the input Rangeary-s
   #def _build_infinities(arin, inherited_infs: [], guess_strict: false, **opts)
-    # Explicitly specified?
-    reths = _initialized_infinities
-    hsref = {}.merge reths
 
-    arin.each do |rang|  # Range, RangeExtd, Rangeary
-#print "DEBUG61:get: rang=";p rang
-      _validate_opts_infinities([rang], infs: reths)
-      reths, hs = _merged_infinities(reths, rang)
-      hsref, _  = _merged_infinities(hsref, hs) unless hs.empty?  # Gussed one from Range
+    reths = _get_infinities_from_multiple(arin)
+
+#    reths = HashInf.construct
+#    #hsref = {}.merge reths  # Standard Hash (not extended with HashInf)
+#
+#    arin.each do |rang|  # Range, RangeExtd, Rangeary
+##print "DEBUG61:get: rang=";p rang
+#      _validate_opts_infinities([rang], infs: reths)
+#      reths.merge_hashinf!(_get_infinities_from_obj(rang))
+#    end
+    #  reths, hs = _merged_infinities(reths, rang)
+    #  hsref, _  = _merged_infinities(hsref, hs) unless hs.empty?  # Gussed one from Range
 #print "DEBUG61:get: [reths,hs,hsref]=";p [reths,hs,hsref]
-    end
-#print "DEBUG62:get: [reths,hsref]=";p [reths,hsref]
-    reths, _ =    _merged_infinities(hsref, reths)  # Those taken from argument Rangeary has a higher priority (except for the value of FALSE)
-#print "DEBUG63:get: [reths,hsref]=";p [reths,hsref]
+    #end
+#print "DEBUG62:get: [reths,opts]=";p [reths,opts]
+    #reths, _ =    _merged_infinities(hsref, reths)  # Those taken from argument Rangeary has a higher priority (except for the value of FALSE)
+
+
+    reths.merge_hashinf!(opts, force: true)
+#print "DEBUG63:get: [reths]=";p [reths]
 
     # Read @infinities from Rangeary-s in arin, if exits
     #reths = self.class.send(:_validate_select_infinities, inherited_infs, reths)  ###############
-    _ = self.class.send(:_validate_select_infinities, [reths], @infinities) # Just to check
+    #_ = self.class.send(:_validate_select_infinities, [reths], @infinities) # Just to check
+    _ = _validate_select_infinities([reths], @infinities) # Just to check
 
-    # Read @infinities from Rangeary-s in arin, if exits
-    return _merged_infinities(reths, opts).first  # Optional argument in new() has the highest priority
+    reths
+
+    ## Read @infinities from Rangeary-s in arin, if exits
+    #return _merged_infinities(reths, opts).first  # Optional argument in new() has the highest priority
 
 
 #    reths = _build_infinities_from_opts(opts)  # reths.nil? if no options are specified.
@@ -1279,115 +1294,6 @@ class Rangeary < Array
 #    _best_guessed_infinities(reths, arin, strict: guess_strict, leave_existing: leave_existing)
   end
   private :_build_infinities
-
-  # Returns existing merged (overwritten) with newinf when necessary
-  #
-  # If newinf[:positive] is not false, the existing[:positive] is overwritten.
-  # So is not with negative.
-  #
-  # @param existing [Hash] must include the sole kyes :positive and :negative
-  # @param newinf [Hash, Rangeary, Range] If Hash, must include the sole kyes :positive and :negative
-  # @return [Array<Hash>] Two elements of infinities Hash [Definite, GuessedFromRange] The latter may be Hash#empty?
-  def _merged_infinities(existing, newinf)
-    reths = {}.merge existing
-    if newinf.respond_to? :exclude_end?
-      # Range/RangeExtd
-      return [reths, _guessed_infinities_from_range(newinf)]
-    end
-
-    if newinf.respond_to? :infinities
-      newinf = newinf.instance_variable_get("@infinities")  # to get the instance variable @infinities, as opposed to Rangeary#infinities
-    end
-
-    newinf.each_pair do |key, val|
-      next if false == val
-      reths[key] = val
-    end
-    [reths, {}]
-  end
-  private :_merged_infinities
-
-
-  # Returns guessed infinities from the given Range 
-  #
-  # @param ran [Rangeary, Range]
-  # @return [Hash<Object>] 2 keys of :positive and :negative. false if not found anything.
-  def _guessed_infinities_from_range(ran)
-     reths = _initialized_infinities
-     return reths if ran.is_none?
-
-     hskeys = {begin: :negative, end: :positive}
-     [:begin, :end].each do |method|
-       val = ran.send(method)
-#print "DEBUG263:from_ran: method,val=";p [method,val]
-       reths[hskeys[method]] = 
-         case val
-         when RangeExtd::Infinity
-           val
-         when Numeric
-           ((:begin == method) ? -1 : 1) * Float::INFINITY
-         else
-           nil
-         end
-     end
-#print "DEBUG268:from_ran: reths=";p reths
-     _get_adjusted_infinities(reths)
-  end
-  private :_guessed_infinities_from_range
-
-  # Returns adjusted infinities
-  #
-  # Priorities are
-  #
-  # 1. exact value
-  # 2. Float::INFINITY
-  # 3. RangeExtd::Infinity
-  # 4. nil
-  # 5. false
-  #
-  # @param ininf [Hash] 2 keys of :positive and :negative.
-  # @return [Hash<Object>] 2 keys of :positive and :negative. false if not found anything.
-  def _get_adjusted_infinities(ininf)
-     reths = {}.merge ininf
-     priorities = [FalseClass, NilClass, RangeExtd::Infinity, Numeric, Object]
-
-     hspri = {}
-     reths.each_pair do |posneg, inf|
-       hspri[posneg] =
-         priorities.each_with_index do |klass, i|
-           break i if inf.is_a?(klass)
-         end
-       raise "Should not happen" if !hspri[posneg]
-     end
-#print "DEBUG363:adjusted: reths,hspri=";p [reths,hspri]
-     return reths if hspri[:positive] == hspri[:negative]
-
-     if hspri[:positive] < hspri[:negative]
-       # :negative has a higher priority
-       reths[:positive] =
-         case hspri[:negative]
-         when 2
-           RangeExtd::Infinity::POSITIVE 
-         when 3
-           Float::INFINITY
-         else
-           nil
-         end
-       return reths
-     end
-       
-     reths[:negative] =
-       case hspri[:positive]
-       when 2
-         RangeExtd::Infinity::NEGATIVE 
-       when 3
-         -Float::INFINITY
-       else
-         nil
-       end
-     reths
-  end
-  private :_get_adjusted_infinities
 
 
 
@@ -1441,12 +1347,6 @@ class Rangeary < Array
   private :_guessed_infinity
 
 
-  # Instance method version
-  def is_num_type?(obj)
-    self.class.send(__method__, obj)
-  end
-  private :is_num_type?
-
   # Normalize a Range, which is about to be used for new {Rangeary}
   #
   # @param rbeg [Object]
@@ -1477,44 +1377,6 @@ class Rangeary < Array
       (arin.all?(&:positive?) || arin.all?(&:negative?))
   end
   private :same_infinities?
-
-  # Validate @infinities from the command-line options.
-  #
-  # This basically applies +<=>+ operator and if an Exception raises,
-  # converts it to ArgumentError.
-  # Almost no Object should fail, because +<=>+ is defined in
-  # the Object class and it does not fail!  For example, +3 <=> "a"+
-  # returns +nil+ and so it does not fail.
-  #
-  # @param arin [Array<Range, RangeExtd, Rangeary>]
-  # @param infs [Hash]
-  # @return [void]
-  # @raise [ArgumentError]
-  def _validate_opts_infinities(arin, infs: @infinities)
-    infs.each_pair do |ek, my_inf|
-      next if !my_inf #|| RangeExtd::Infinity.infinite?(my_inf)
-      arin.flatten.each do |er|  # Rangeary is flattened.
-        next if er.is_none?  # Required for Ruby 2.7+ (for updated RangeExtd::NONE for beginless Range)
-        [er.begin, er.end].each do |ev|
-          next if !ev
-          next if (is_num_type?(ev) && is_num_type?(my_inf))
-          begin
-            case my_inf <=> ev
-            when -1, 0, 1
-              next
-            else # nil or ralse
-              next
-            end
-          rescue
-            msg = "invalid parameter for :#{ek} => (#{my_inf.inspect}), incompatible with the range with Range=(#{er.inspect})."
-            raise ArgumentError, msg
-          end
-        end
-      end
-    end
-  end
-  private :_validate_opts_infinities
-
 
   # Called from {Rangeary#initialize}.
   #
@@ -1881,123 +1743,12 @@ class Rangeary < Array
   end	# def self.conjunctionRangeExtd(r1, r2)
   private_class_method :conjunctionRangeExtd
 
-  # Returns the candidate @infinities from the input Rangeary
-  #
-  # If there is any Rangeary in the input.
-  #
-  # Example return:
-  #   { :positive => [nil,  Float::INFINITY],
-  #     :negative => [nil, -Float::INFINITY] }
-  #
-  # Note the standard @infinities is a Hash, but NOT a Hash of Array.
-  # This method returns the candidates.
-  #
-  # @param arin [Array<Hash<Infinity, nil>>] Inherited infinities from the input Rangeary-s
-  # @return [Hash<Array>] keys (:positive and :negative) Array#size may not agree between them.
-  def self._get_cand_infinities(arin)
-    hsret = { positive: [], negative: [] }
-    arin.each do |ec|
-      hsret.each_key do |k|
-        hsret[k] << ec[k]
-      end
-    end
-    hsret
-  end
-  private_class_method :_get_cand_infinities
 
   # True if object is a type of Rangeary
   def self.is_rangeary_type?(obj)
     obj.respond_to?(:infinities) && obj.class.method_defined?(:first_element)
   end
   private_class_method :is_rangeary_type?
-
-  # True if object is a type of Numeric and comparable
-  def self.is_num_type?(obj)
-    Numeric === obj && obj.respond_to?(:between?) && obj.class.method_defined?(:<)
-  end
-  private_class_method :is_num_type?
-
-  # Sort infinities obtained from inherited objects
-  #
-  # RangeExtd::Infinity is ignored.  Float::INFINITY has the lowest priority.
-  #
-  # @param hs_inherit [Hash<Array>] :positive => Array, etc (From Rangeary-s in the main Array given)
-  # @return [Hash<Array>] each key (:(posi|nega)tive) contains the sorted candidate Array.
-  def self._sort_inherited_infinities_all(hs_inherit)
-    hs_inherit.map do |ek, ev|
-      [ek, _sort_inherited_infinities_each(ev, key=ek)]
-    end.to_h  # Ruby 2.1 or later
-  end
-  private_class_method :_sort_inherited_infinities_all
-
-  # Sort infinities obtained from inherited objects
-  #
-  # RangeExtd::Infinity is ignored.  Float::INFINITY has the lowest priority.
-  #
-  # @param ar_infs [Array] of Infinities (inherited)
-  # @param key [Symbol] :positive or :negative
-  # @return [Array]
-  def self._sort_inherited_infinities_each(ar_infs, key=:positive)
-    ar_infs.map {|j|
-      (RangeExtd::Infinity === j) ? nil : j
-    }.compact.sort{|a,b|
-      if is_num_type?(a) && RangeExtd::Infinity.infinite?(a)
-        -1
-      elsif is_num_type?(b) && RangeExtd::Infinity.infinite?(b)
-        1
-      else
-        begin
-          (key == :positive) ? (a<=>b) : (b<=>a)
-        rescue
-          0
-        end
-      end
-    }
-  end
-  private_class_method :_sort_inherited_infinities_each
-
-  # Validate the infinities by Options and inherited and select the best
-  #
-  # If Option is specified, that has the priority.
-  # Among the inherited, the youngest non-nil one has the highest priority.
-  #
-  # If there are any inconsistencies, issue a warning message, if $VERBOSE==true.
-  #
-  # Note this method does not look at the contents of the Range Array given.
-  #
-  # @param ar_inherit [Array<Hash<Infinity, nil>>] Inherited infinities from the input Rangeary-s
-  # @param hs_opts [Hash, nil] :positive, :negative, specified by the option to {Rangeary.initialize}
-  # @return [Hash] keys (:positive and :negative) with a single value for each
-  def self._validate_select_infinities(ar_inherit, hs_opts=nil)
-    hs_inherit = _get_cand_infinities(ar_inherit)
-    if !hs_opts
-      hs_opts = hs_inherit.map{ |ek, ev|
-        [hs_inherit[ek], nil]
-      }.to_h  # Ruby 2.1 or later
-    end
-    # e.g., hs_inherit[:positive] == [ "z"(From-Option), nil(Inherited), "y"(Inherited), INFINITY(inherited) ]
-
-    # Selection
-    hsret = _sort_inherited_infinities_all( hs_inherit ).map{ |ek, ev|
-      [ek, ([hs_opts[ek]]+ev).compact[0]]
-    }.to_h  # Ruby 2.1 or later
-
-    # Validation (for warning, issued when $VERBOSE==true)
-    if $VERBOSE
-      hs_inherit.each_pair do |ek, ev|  # loop over [:positive, :negative]
-        ev_uniq = ([hs_opts[ek]]+ev).compact.uniq
-        ev_uniq.delete false
-        msg = "Inconsistent %s infinities are found: %s (=> %s is used)"%[ek, ev_uniq.inspect, hsret[ek]]
-        #warn msg if $VERBOSE && (ev_uniq.size > 2) && (!ev_uniq.all?{ |c| RangeExtd::Infinity.infinite?(c) })
-        warn msg if (ev_uniq.size > 1) && (!ev_uniq.all?{ |c| RangeExtd::Infinity.infinite?(c) })
-warn "DEBUG:998:warn: hs_inherit=#{hs_inherit}, hs_opts=#{hs_opts}" if (ev_uniq.size > 1) && (!ev_uniq.all?{ |c| RangeExtd::Infinity.infinite?(c) }) && Float === ev_uniq[-1]       ################
-warn "DEBUG:999:warn: #{ev_uniq.map(&:class).map(&:inspect)}" if (ev_uniq.size > 1) && (!ev_uniq.all?{ |c| RangeExtd::Infinity.infinite?(c) })      ################
-      end
-    end
-
-    hsret
-  end
-  private_class_method :_validate_select_infinities
 
 end # class Rangeary < Array
 
