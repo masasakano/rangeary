@@ -311,8 +311,8 @@ specified as an infinity, it **contradicts** the elements in the sense they
 are not comparable.
 
 Internally, the {Rangeary} instance has a Hash extended with
-{Rangeary::Util::HashInf}, which can be obtained with `#instances(raw: true)`.
-It has only 2 keys of `:negative` and `:positive`, the values of which are the
+{Rangeary::Util::HashInf}, which can be obtained with {#instances}. It has
+only 2 keys of `:negative` and `:positive`, the values of which are the
 current best-guessed or definite infinities.  The Hash also holds status
 information for each polarity with 3 levels of
 
@@ -401,18 +401,21 @@ same):
     ~(Rangeary(..nil) * Rangeary(7..))
       # => Rangeary(...7)
 
-The registered infinities for each instance is obtained as a Hash with two
-keys of `:positive` and `negative` with the method {#infinities}; for example,
+The registered infinities for each instance is obtained (Hash extended with
+HashInf), which has two keys of `:positive` and `negative`, with the method
+{#infinities}; for example,
 
-    ran.infinities  # => { :negative => "a"
-                    #      :positive => nil, }
-
-If you want to obtain the raw instance variable (Hash extended with HashInf),
-specify the option `raw: true`:
-
-    ran.infinities(raw: true)
+    ran.infinities
       # => <Hash(Inf): {:negative=>"a", :positive=>nil},
       #     status: {:negative=>:definite, :positive=>:guessed}>
+
+Note that the values of the returned Hash (+HashInf) may be `false`; if it is
+not convenient, call it as +#instances(convert: true)+ with which `false` in
+the returned value, if there is any, is converted to `nil` and the standard
+Hash as opposed to Hash extended with {Rangeary::Util::HashInf} is returned:
+
+    ran.infinities(convert: true)  # => { :negative => "a"
+                                   #      :positive => nil, }
 
 Consults the manuals of the methods for detail.
 

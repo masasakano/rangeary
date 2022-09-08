@@ -854,7 +854,7 @@ class Rangeary < Array
       rc = Rangeary.new( RangeExtd::NONE, **hsinf )  # hsinf is essential to define @infinities
 
 #print "DEBUG33:conj: rc=";p rc
-#print "DEBUG34:conj: rc@infinities=";p rc.infinities(raw: true)
+#print "DEBUG34:conj: rc@infinities=";p rc.infinities
 
       if a1.empty? || a2.empty?
         return rc

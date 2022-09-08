@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 
 require 'tempfile'
-require_relative "tee_io.rb"
+require_relative "tee_io.rb"  # Library to suppress STDERR/STDOUT <https://gist.github.com/masasakano/789030a7dc5313bd343b2de967a93200>
 
 $stdout.sync=true
 $stderr.sync=true
@@ -14,41 +14,6 @@ arlibrelbase.each do |elibbase|
   require_relative elibbase
 end	# arlibbase.each do |elibbase|
 
-#arlibrelpath = []
-#arlibbase.each do |elibbase|
-#  #elibbase
-#
-#  arAllPaths = []
-#  er=nil
-#  pathnow = nil
-#  (['../lib/', 'lib/', ''].map{|i| i+elibbase+'/'} + ['']).each do |dir|
-#    # eg., pathcand = %w(../lib/rangesmaller/ lib/rangesmaller/ rangesmaller/) + ['']
-#    begin
-#      s = dir+File.basename(elibbase)
-#      arAllPaths.push(s)
-##print "Trying: "; puts s
-#      require s
-#      pathnow = s
-#      break
-#    rescue LoadError => er
-#    end
-#  end	# (['../lib/', 'lib/', ''].map{|i| i+elibbase+'/'} + '').each do |dir|
-#
-#  if pathnow.nil?
-#    warn "Warning: All the attempts to load the following files have failed.  Abort..."
-#    warn arAllPaths.inspect
-#    warn " NOTE: It may be because a require statement in that file failed, 
-#rather than requiring the file itself.
-# Check with  % ruby -r#{File.basename(elibbase)} -e p
-# or maybe add  env RUBYLIB=$RUBYLIB:`pwd`"
-#    # p $LOADED_FEATURES.grep(/#{Regexp.quote(File.basename(elibbase)+'.rb')}$/)
-#    raise er
-#  else
-##print pathnow," is loaded!\n"
-#    arlibrelpath.push pathnow
-#  end
-#end	# arlibbase.each do |elibbase|
-
 print "NOTE: Library relative paths: "; p arlibrelbase
 arlibbase4full = arlibbase.map{|i| i.sub(%r@^(../)+@, "")}+%w(range_extd)
 puts  "NOTE: Library full paths for #{arlibbase4full.inspect}: "
@@ -56,12 +21,6 @@ arlibbase4full.each do |elibbase|
   ar = $LOADED_FEATURES.grep(/(^|\/)#{Regexp.quote(File.basename(elibbase))}(\.rb)?$/).uniq
   print elibbase+": " if ar.empty?; p ar
 end
-#print "NOTE: Library relative paths: "; p arlibrelpath
-#print "NOTE: Library full paths:\n"
-#arlibbase.each do |elibbase|
-#  p $LOADED_FEATURES.grep(/#{Regexp.quote(File.basename(elibbase)+'.rb')}$/)
-#end
-
 
 #################################################
 # Unit Test
@@ -292,7 +251,7 @@ end
       rang = Rangeary(*ran)
       hsinf = {negative: nil, positive: InfF}
       assert_equal ran, rang
-      assert_equal hsinf, rang.infinities
+      assert_equal hsinf, rang.infinities  # Hash == HashInf
 
       rang2 = Rangeary(11..13, Rangeary(*rang), 15..16)
       assert_equal ran, rang2
@@ -328,10 +287,10 @@ end
 
       r6 = Rangeary(InfF..InfF)
       assert_equal [RangeExtd::NONE], r6  # Strange zero-sized one, handled by _replace_inf_inf(arin)  # Note that irb displays [RangeExtd::NONE] as [nil...nil]
-      assert  r6.infinities(raw: true).status_is_nil?(:positive), "confidence of the infinities of the meaningless Range should be nil"
-      assert  r6.infinities(raw: true).status_is_nil?(:negative)
-      assert_equal false, r6.infinities(raw: true)[:positive]
-      assert_equal false, r6.infinities(raw: true)[:negative]
+      assert  r6.infinities.status_is_nil?(:positive), "confidence of the infinities of the meaningless Range should be nil: infinities=#{r6.infinities.inspect}"
+      assert  r6.infinities.status_is_nil?(:negative)
+      assert_equal false, r6.infinities[:positive]
+      assert_equal false, r6.infinities[:negative]
 
       assert_equal [r1], Rangeary(r1,(-InfF..-InfF))
       assert_equal [r1], Rangeary(r1,( InfF..InfF))
@@ -345,8 +304,8 @@ end
       assert_raises(ArgumentError){ Rangeary(3..InfF,   positive: 99) }
       assert_raises(ArgumentError){ Rangeary(-InfF..99, negative: -6) }
       r12 = Rangeary(-InfF..99, negative: InfN, positive: InfP)
-      assert_equal InfP, r12.infinities(raw: true)[:positive]
-      assert             r12.infinities(raw: true).definite? :negative
+      assert_equal InfP, r12.infinities[:positive]
+      assert             r12.infinities.definite? :negative
 
       ## The following used to be the case?
       #err = assert_raises(ArgumentError){ Rangeary(r1,(InfF..InfF)) }
@@ -359,9 +318,9 @@ end
       rae1 = RaE("k"..nil, true)
       r3 = ~(Rangeary(ran2, negative: "d"))
       assert_equal Rangeary("d"..."f", rae1), r3
-      assert_equal "d", r3.infinities(raw: true)[:negative]
+      assert_equal "d", r3.infinities[:negative]
       r4 =   Rangeary(r3, negative: "a")
-      assert_equal "b", Rangeary(r4, negative: "b").infinities(raw: true)[:negative]
+      assert_equal "b", Rangeary(r4, negative: "b").infinities[:negative]
       r5 =  ~Rangeary(r4)
       assert_equal Rangeary("a"..."d", "f".."k"), r5
 
@@ -378,7 +337,7 @@ end
       #assert_match(/Inconsistent negative infinities are found\b/, iorw.read)  # util.rb: _validate_select_infinities()
      #}
       assert_equal Rangeary("d".."d"), r7
-      assert_equal "a", r7.infinities(raw: true)[:negative]
+      assert_equal "a", r7.infinities[:negative]
       r8 = (r3 ^ (?e..?h))
       assert_equal Rangeary("d"..."e", "f".."h", rae1), r8
     end # def test_new_infinity2
@@ -393,11 +352,12 @@ end
       ray3 = ray1 + Rangeary(?i..?j, positive: "k")
       assert_equal [?h...?m], ray3
       assert_equal({positive: ?z, negative: ?a}, ray3.infinities)  # Hash-extended-with-HashInf
-      assert  ray3.infinities(raw: true).definite?(:positive)
-      assert  ray3.infinities(raw: true).definite?(:negative)
+      assert_equal({positive: ?z, negative: ?a}, ray3.infinities(convert: false))  # Hash == Hash
+      assert  ray3.infinities.definite?(:positive)
+      assert  ray3.infinities.definite?(:negative)
       ray4 = Rangeary(ray3, positive: ?m)
-      assert_equal ?m, ray4.infinities(raw: true)[:positive]
-      assert           ray4.infinities(raw: true).definite?(:positive)
+      assert_equal ?m, ray4.infinities[:positive]
+      assert           ray4.infinities.definite?(:positive)
       err = assert_raises(ArgumentError){ ray4 + [?m..?t] } # specified/inherited positive infinity ("k") is not large enough or inconsistent: (<=> "m")
       assert_match(%r@specified/inherited positive infinit.+"m".+\bnot large enough\b.+"t"@, err.message) # specified/inherited positive infinity ("m") is not large enough or inconsistent: (<=> "t")
     end
@@ -411,7 +371,7 @@ end
 
       rang = Rangeary(?d..infend)
       hsinf = {negative: nil, positive: "w"}
-      assert_equal hsinf, rang.infinities
+      assert_equal hsinf, rang.infinities  # Hash == HashInf
       assert_equal [...?d], ~rang
       rang = Rangeary(Rangeary(?a...?b), ?b...?c, ?d..infend, ?f..?j)
       assert_equal hsinf, rang.infinities
@@ -424,11 +384,11 @@ end
       assert_match(%r@negative infinity\b.+ is not small enough@, err.message)
       r3 = Rangeary(?b...?c, ?d..infend)
       assert_equal hsinf,  r3.infinities
-      assert               r3.infinities(raw: true).definite?(:positive)
+      assert               r3.infinities.definite?(:positive)
       r4 = Rangeary(?b...?c, ?d..infend, Rangeary(?f..?z, positive: InfP))
       hsinf4 = hsinf.merge({positive: InfP})
       assert_equal hsinf4, r4.infinities
-      assert               r4.infinities(raw: true).definite?(:positive)
+      assert               r4.infinities.definite?(:positive)
     end
 
     def test_custom_infinity2
@@ -440,7 +400,7 @@ end
 
       ra1 = Rangeary(?b...?c, ?d..infend)
       ra2 = Rangeary(ra1, positive: InfP)
-      assert_equal hsinf.merge({positive: InfP}), ra2.infinities
+      assert_equal hsinf.merge({positive: InfP}), ra2.infinities  # Hash == HashInf
       assert_equal [?b..?z],  Rangeary(ra2, ?c..?z)
 
       rang = Rangeary(?b...?c, ?d..infend, Rangeary(?f..?w, negative: InfN))
@@ -585,10 +545,10 @@ end
       _ = 7..nil rescue return # before Ruby 2.6
       assert_equal [-6..-1, 2...4], rs-(4...nil)
       rr = Rangeary(6..nil)
-      assert       rr.infinities(raw: true).definite?(:positive)
-      assert_nil   rr.infinities(raw: true)[:positive]
+      assert       rr.infinities.definite?(:positive)
+      assert_nil   rr.infinities[:positive]
       r2 = rr-(6...8)
-      assert_nil   r2.infinities(raw: true)[:positive], "positive should be nil with :definite: "+r2.infinities(raw: true).inspect
+      assert_nil   r2.infinities[:positive], "positive should be nil with :definite: "+r2.infinities.inspect
       assert_nil   r2.infinities[:positive]
       assert_equal [8..nil],  rr-(6...8)
       assert_equal [6...7],   rr-(7...nil)
@@ -766,7 +726,7 @@ end
       assert_raises(ArgumentError){ r1 * Rangeary(RangeExtd::ALL) }  # Inconsistent given infinities: comparison of Float with RangeExtd::Infinity failed  # used to be fine up to Rangeary Ver.1
       r2 = r1 * Rangeary(-inf..nil)  # Positive infinity (=Float::INFINITY) is inherited and preserved from r1
       assert_equal r1,     r2
-      assert_equal hsinff, r2.infinities
+      assert_equal hsinff, r2.infinities  # Hash == HashInf
       # reverse
       r2 = Rangeary(-inf..nil) * r1
       assert_equal r1,     r2
@@ -883,20 +843,20 @@ end
       assert_equal Rangeary(RangeExtd::NONE), ~Rangeary(RangeExtd(...nil, true))
 
       assert_equal [nil..], ~Rangeary(RangeExtd::NONE)
-      assert   (~Rangeary(RangeExtd::NONE)).infinities(raw: true).status_is_nil?(:positive)
-      assert  (~~Rangeary(RangeExtd::NONE)).infinities(raw: true).status_is_nil?(:positive)
-      assert  (~~Rangeary(RangeExtd::NONE)).infinities(raw: true).status_is_nil?(:negative)
+      assert   (~Rangeary(RangeExtd::NONE)).infinities.status_is_nil?(:positive)
+      assert  (~~Rangeary(RangeExtd::NONE)).infinities.status_is_nil?(:positive)
+      assert  (~~Rangeary(RangeExtd::NONE)).infinities.status_is_nil?(:negative)
 
       r3 = ~Rangeary(RangeExtd(6...6, true))
       assert_equal [-InfF..InfF], r3
-      assert  r3.infinities(raw: true).guessed?(:positive), "Status should be guessed for #{r3.infinities(raw: true).inspect}"
+      assert  r3.infinities.guessed?(:positive), "Status should be guessed for #{r3.infinities.inspect}"
       r4 = ~Rangeary(InfF..InfF) # meaningless Range
       assert_equal [nil..], r4   # Because Float information is lost for the meaningless Rnage
-      assert  r4.infinities(raw: true).status_is_nil?(:positive)
+      assert  r4.infinities.status_is_nil?(:positive)
       r5 = ~Rangeary(RangeExtd(?g...?g, true))
       assert_equal [nil..], r5
      # assert_equal RangeExtd::ALL, r5, "At the moment, (nil..)==RangeExtd::ALL (which is subject to change in the future?)"
-      assert  r5.infinities(raw: true).guessed?(:positive)
+      assert  r5.infinities.guessed?(:positive)
 
       assert_equal Rangeary(?a...?d, ?f..?z),   ~Rangeary(?d...?f, negative: ?a, positive: ?z)
       assert_equal Rangeary(?d...?f),          ~~Rangeary(?d...?f, negative: ?a, positive: ?z)
@@ -904,10 +864,10 @@ end
 
       r2  =  Rangeary(6...8)
       r2n = ~r2
-      assert       r2.infinities(raw: true).status_is_a?(:guessed, :positive)
-      assert       r2.infinities(raw: true).guessed?(:positive)
-      refute      r2n.infinities(raw: true).definite?(:positive)
-      assert      r2n.infinities(raw: true).guessed?(:positive), "Negated Range without an explicit infinity should have a status of :guessed"
+      assert       r2.infinities.status_is_a?(:guessed, :positive)
+      assert       r2.infinities.guessed?(:positive)
+      refute      r2n.infinities.definite?(:positive)
+      assert      r2n.infinities.guessed?(:positive), "Negated Range without an explicit infinity should have a status of :guessed"
     end	# def test_negation
 
 
@@ -952,7 +912,7 @@ end
       # because the option has always the priority.
       ri = Rangeary(rn_inv, negative: -InfF)
       hsinf = {:negative=>-InfF, :positive=>nil}
-      assert_equal hsinf, ri.infinities
+      assert_equal hsinf, ri.infinities  # Hash == HashInf
       ran2 = Rangeary(-InfF...1, 5...9)
       ri_inv = ~ri
       assert_equal ran2, ri_inv
@@ -1113,15 +1073,15 @@ end
       r3 =  Rangeary(ran2, negative: "d")
       r4 = ~r3
       assert_equal Rangeary("d"..."f", rae1), r4
-      assert_equal "d", r4.infinities(raw: true)[:negative]
-      assert            r4.infinities(raw: true).definite?(:negative)
-      assert_nil        r4.infinities(raw: true)[:positive]
-      assert            r4.infinities(raw: true).guessed?(:positive)
+      assert_equal "d", r4.infinities[:negative]
+      assert            r4.infinities.definite?(:negative)
+      assert_nil        r4.infinities[:positive]
+      assert            r4.infinities.guessed?(:positive)
       err = assert_raises(ArgumentError){ Rangeary(r4, positive: "t") } # => specified/inherited positive infinity ("t") is not large enough or inconsistent: (<=> nil)
       assert_match(/not large enough or inconsistent\b/, err.message)
       r6 =   Rangeary(r3, positive: "t")  # OK: positive infinity is set.
-      assert_equal "d", r6.infinities(raw: true)[:negative]
-      assert            r6.infinities(raw: true).definite?(:negative)
+      assert_equal "d", r6.infinities[:negative]
+      assert            r6.infinities.definite?(:negative)
       r7 =  ~r6
       assert_equal Rangeary("d"..."f", RangeExtd("k".."t", true)), r7
       assert_equal r4[0],  r7[0]
