@@ -223,7 +223,7 @@ end
       assert_equal RaE(-InfF...9.3, T), Rangeary.comparable_beginend(RaE(...9.3, true))
       assert_equal RaE(9.3..InfF),  Rangeary.comparable_beginend(9.3..)
       assert_equal RaE(?a...InfP),  Rangeary.comparable_beginend(?a...)
-      
+
       # infinities are given.
       hsinf = {negative: ?a, positive: ?z}
       assert_equal RangeExtd(?b...?z),   Rangeary.comparable_beginend(?b..., infinities: hsinf)
@@ -236,14 +236,19 @@ end
       # instance-method version
       hsinf = {negative: ?a, positive: ?z}
       ran = RaE(..?d, T)
+      assert_raises(ArgumentError){ Rangeary(ran, **hsinf) }  # raise: specified/inherited negative infinity ("a") is not small enough or inconsistent: (<=> nil)
+      ran = RaE(?a..?d, T)
       rangy = Rangeary(ran, **hsinf)
       assert_equal RaE(?a..?d, T), rangy.send(:_comparable_beginend, ran)
 
       ran = RaE(?c.., T)
-      rangy = Rangeary(RaE(?c.., T), **hsinf)
-      assert_equal RangeExtd(?c..?z, T), rangy.send(:_comparable_beginend, ran)
-      rangy = Rangeary(RaE(?c.., T))
-      assert_equal RaE(?c..InfP,  T),    rangy.send(:_comparable_beginend, ran)
+      assert_raises(ArgumentError){ Rangeary(ran, **hsinf) }  # raise: specified/inherited negative infinity ("z") is not large enough or inconsistent: (<=> nil)
+      rangy = Rangeary(ran)
+      assert_equal RaE(?c..InfP, T), rangy.send(:_comparable_beginend, ran)
+
+      ran = RaE(?c..?z, T)
+      rangy = Rangeary(ran, **hsinf)
+      assert_equal ran,              rangy.send(:_comparable_beginend, ran)
     end
 
     def test_sort_ranges
@@ -321,25 +326,80 @@ end
       r5 = RangeExtd(?c, InfP, T)
       assert_equal [RangeExtd::ALL], Rangeary(r4,r5).to_a
 
-      err = assert_raises(ArgumentError){ Rangeary(r1,(-InfF..-InfF)) }
-      assert_match(/not large enough or inconsistent\b/, err.message) # (_validate_infinities) => specified positive infinities (-Infinity) are not large enough or inconsistent.
-      err = assert_raises(ArgumentError){ Rangeary(r1,(InfF..InfF)) }
-      assert_match(/not small enough or inconsistent\b/, err.message) # (_validate_infinities) => specified negative infinities (Infinity) are not small enough or inconsistent.
+      r6 = Rangeary(InfF..InfF)
+      assert_equal [RangeExtd::NONE], r6  # Strange zero-sized one, handled by _replace_inf_inf(arin)  # Note that irb displays [RangeExtd::NONE] as [nil...nil]
+      assert  r6.infinities(raw: true).status_is_nil?(:positive), "confidence of the infinities of the meaningless Range should be nil"
+      assert  r6.infinities(raw: true).status_is_nil?(:negative)
+      assert_equal false, r6.infinities(raw: true)[:positive]
+      assert_equal false, r6.infinities(raw: true)[:negative]
+
+      assert_equal [r1], Rangeary(r1,(-InfF..-InfF))
+      assert_equal [r1], Rangeary(r1,( InfF..InfF))
+
+      r11 = Rangeary(?f..)
+      err = assert_raises(ArgumentError){ Rangeary(r11,  positive: ?t) }
+      assert_match(/positive .+ not large enough or inconsistent\b/, err.message) # (_validate_infinities) => specified positive infinities ("t") are not small enough or inconsistent: (<=> nil)
+      assert_raises(ArgumentError){ Rangeary(?f.., positive: ?t) }
+      assert_raises(ArgumentError){ Rangeary(..?f, negative: ?a) }
+      assert_raises(ArgumentError){ Rangeary(3..,       positive: 99) }
+      assert_raises(ArgumentError){ Rangeary(3..InfF,   positive: 99) }
+      assert_raises(ArgumentError){ Rangeary(-InfF..99, negative: -6) }
+      r12 = Rangeary(-InfF..99, negative: InfN, positive: InfP)
+      assert_equal InfP, r12.infinities(raw: true)[:positive]
+      assert             r12.infinities(raw: true).definite? :negative
+
+      ## The following used to be the case?
+      #err = assert_raises(ArgumentError){ Rangeary(r1,(InfF..InfF)) }
+      #assert_match(/not small enough or inconsistent\b/, err.message) # (_validate_infinities) => specified negative infinities (Infinity) are not small enough or inconsistent.
     end	# def test_new_infinity
+
+    def test_new_infinity2
+      ## doc inside the code (Rangeary#initialize)
+      ran2 = ("f".."k")
+      rae1 = RaE("k"..nil, true)
+      r3 = ~(Rangeary(ran2, negative: "d"))
+      assert_equal Rangeary("d"..."f", rae1), r3
+      assert_equal "d", r3.infinities(raw: true)[:negative]
+      r4 =   Rangeary(r3, negative: "a")
+      assert_equal "b", Rangeary(r4, negative: "b").infinities(raw: true)[:negative]
+      r5 =  ~Rangeary(r4)
+      assert_equal Rangeary("a"..."d", "f".."k"), r5
+
+      r6 = r3 + Rangeary("c".."d", negative: "a")
+      assert_equal Rangeary("c"..."f", rae1), r6
+
+      assert_equal r3, r3*(..nil), "conjunction with (..nil) should never raise an Exception, because nil has a lower priority than other infinities."
+
+      r7 = nil
+      ################# puts "\nNOTE: A warning is suppressed during this testing. To display it, set DISPLAY_STDERR=1" if !ENV['DISPLAY_STDERR'] || ENV['DISPLAY_STDERR'].empty?   ### This statement is removed because there are no warnings displayed in the end!
+     #TeeIO.suppress_io{|iorw|
+      r7 = r3*Rangeary("c".."d", negative: "a")
+      #iorw.rewind
+      #assert_match(/Inconsistent negative infinities are found\b/, iorw.read)  # util.rb: _validate_select_infinities()
+     #}
+      assert_equal Rangeary("d".."d"), r7
+      assert_equal "a", r7.infinities(raw: true)[:negative]
+      r8 = (r3 ^ (?e..?h))
+      assert_equal Rangeary("d"..."e", "f".."h", rae1), r8
+    end # def test_new_infinity2
 
     def test_user_infinity
       # @infinities are inherited but maybe partially overwritten in initialization
       ray1 = Rangeary(?h...?m, negative: ?a, positive: ?z)
       assert_equal [?a...?h, ?m..?z], ~ray1
-      ################# puts "NOTE: Most warnings are suppressed. To display them, set DISPLAY_STDERR=1" if !ENV['DISPLAY_STDERR'] || ENV['DISPLAY_STDERR'].empty?   ### This statement is removed because there are no warnings displayed in the end!
-     #TeeIO.suppress_io{|iorw|
       assert_equal [?b...?h, ?m..?z], ~Rangeary(ray1, negative: ?b)
-      #iorw.rewind
-      #assert_match(/Inconsistent negative infinit.*"b"[,;\s]+"a"/, iorw.read) # Inconsistent negative infinities are found: ["b", "a"] (=> b is used)
       assert_equal [?a...?h, ?m..?y], ~Rangeary(ray1, positive: ?y)
       assert_equal [?b...?h, ?m..?y], ~Rangeary(ray1, negative: ?b, positive: ?y)
-     #}
-      assert_raises(ArgumentError){ [?h...?m] == ray1 + Rangeary(?i..?j, positive: "k") } # specified/inherited positive infinity ("k") is not large enough or inconsistent: (<=> "m")
+      ray3 = ray1 + Rangeary(?i..?j, positive: "k")
+      assert_equal [?h...?m], ray3
+      assert_equal({positive: ?z, negative: ?a}, ray3.infinities)  # Hash-extended-with-HashInf
+      assert  ray3.infinities(raw: true).definite?(:positive)
+      assert  ray3.infinities(raw: true).definite?(:negative)
+      ray4 = Rangeary(ray3, positive: ?m)
+      assert_equal ?m, ray4.infinities(raw: true)[:positive]
+      assert           ray4.infinities(raw: true).definite?(:positive)
+      err = assert_raises(ArgumentError){ ray4 + [?m..?t] } # specified/inherited positive infinity ("k") is not large enough or inconsistent: (<=> "m")
+      assert_match(%r@specified/inherited positive infinit.+"m".+\bnot large enough\b.+"t"@, err.message) # specified/inherited positive infinity ("m") is not large enough or inconsistent: (<=> "t")
     end
 
     def test_custom_infinity1
@@ -359,8 +419,16 @@ end
 
       # If (?f..?z) is given, which contradicts the positive infinity "w",
       #   what will happen?
-      assert_raises(ArgumentError){ Rangeary(?b...?c, ?d..infend, Rangeary(?f..?z, negative: InfP)) } # 'specified/inherited negative infinity (INFINITY) is not small enough or inconsistent: (<=> "f")'
-      assert_raises(ArgumentError){ Rangeary(?b...?c, ?d..infend, Rangeary(?f..?z, positive: InfP)) } # 'specified/inherited positive infinity ("w") is not large enough or inconsistent: (<=> "z")'
+      err = assert_raises(ArgumentError, "specifying a positive infinity, InfP, as a negative infinity should raises an Exception."){
+        Rangeary(?b...?c, ?d..infend, Rangeary(?f..?z, negative: InfP)) } # 'specified/inherited negative infinity (INFINITY) is not small enough or inconsistent: (<=> "f")'; b/c 
+      assert_match(%r@negative infinity\b.+ is not small enough@, err.message)
+      r3 = Rangeary(?b...?c, ?d..infend)
+      assert_equal hsinf,  r3.infinities
+      assert               r3.infinities(raw: true).definite?(:positive)
+      r4 = Rangeary(?b...?c, ?d..infend, Rangeary(?f..?z, positive: InfP))
+      hsinf4 = hsinf.merge({positive: InfP})
+      assert_equal hsinf4, r4.infinities
+      assert               r4.infinities(raw: true).definite?(:positive)
     end
 
     def test_custom_infinity2
@@ -402,8 +470,8 @@ end
       assert_equal [nil..9],  Rangeary(nil...8, ...9, 4..9).to_a
       assert_equal [nil...9], Rangeary(nil...8, 2...4, 4...9).to_a
       assert_equal [nil...9], Rangeary(         2...4, 4...9, nil...8)
-      assert_equal [nil..8],  Rangeary(nil...8, 2...4, nil..7)
-      assert_equal [nil..],                    Rangeary(    8..., nil...8)
+      assert_equal [nil...8], Rangeary(nil...8, 2...4, nil..7)
+      assert_equal [nil...],                   Rangeary(    8..., nil...8)
       assert_equal [nil...8,    10...],        Rangeary(   10..., nil...8)
       assert_equal [nil...8, RaE(8.., true)],  Rangeary(RaE(8.., true), nil...8)
 
@@ -517,6 +585,11 @@ end
       _ = 7..nil rescue return # before Ruby 2.6
       assert_equal [-6..-1, 2...4], rs-(4...nil)
       rr = Rangeary(6..nil)
+      assert       rr.infinities(raw: true).definite?(:positive)
+      assert_nil   rr.infinities(raw: true)[:positive]
+      r2 = rr-(6...8)
+      assert_nil   r2.infinities(raw: true)[:positive], "positive should be nil with :definite: "+r2.infinities(raw: true).inspect
+      assert_nil   r2.infinities[:positive]
       assert_equal [8..nil],  rr-(6...8)
       assert_equal [6...7],   rr-(7...nil)
       rr = Rangeary(6..9, 8..nil)
@@ -545,17 +618,18 @@ end
       refute_equal rany, []
       refute_equal [], rany
 
-      assert_equal rany, [4..InfF]
-      assert_equal rany, [4...InfF]
-      assert_equal [4...InfF], rany
-      assert_equal rany2, Rangeary(1..2, 4..InfF)
-      assert_equal rany2, [1..2, 4..InfF]
-      assert_equal [1..2, 4..InfF], rany2
-      assert_equal Rangeary(?a..), [?a..InfP] # This raises the uncapturable SyntaxError for Ruby 2.5 and before anyway.
-      assert_equal [?a..InfP], Rangeary(?a..)
+      ## The following used to be all true up to Rangeary Ver.1 before Ver.2
+      refute_equal rany, [4..InfF]
+      refute_equal rany, [4...InfF]
+      refute_equal [4...InfF], rany
+      refute_equal rany2, Rangeary(1..2, 4..InfF)
+      refute_equal rany2, [1..2, 4..InfF]
+      refute_equal [1..2, 4..InfF], rany2
+      refute_equal Rangeary(?a..), [?a..InfP] # This raises the uncapturable SyntaxError for Ruby 2.5 and before anyway.
+      refute_equal [?a..InfP], Rangeary(?a..)
 
       # Ruby 2.7 Beginless Range
-      assert_equal [..?z],     Rangeary(InfN..?z)
+      refute_equal [..?z],     Rangeary(InfN..?z)
     end
 
     def test_brackets
@@ -748,7 +822,7 @@ end
       _ = 7..nil rescue return # before Ruby 2.6
       r3 = Rangeary(9..11)
       assert_equal [8..nil],  r3 + Rangeary(8..nil)
-      assert_equal [8..InfF], r3 + Rangeary(8..nil)
+      refute_equal [8..InfF], r3 + Rangeary(8..nil)
 
       # Begindless Range since Ruby 2.7
       r4 = Rangeary(9..11)
@@ -808,20 +882,43 @@ end
       assert_equal Rangeary(RangeExtd::NONE), ~Rangeary(...nil)
       assert_equal Rangeary(RangeExtd::NONE), ~Rangeary(RangeExtd(...nil, true))
 
+      assert_equal [nil..], ~Rangeary(RangeExtd::NONE)
+      assert   (~Rangeary(RangeExtd::NONE)).infinities(raw: true).status_is_nil?(:positive)
+      assert  (~~Rangeary(RangeExtd::NONE)).infinities(raw: true).status_is_nil?(:positive)
+      assert  (~~Rangeary(RangeExtd::NONE)).infinities(raw: true).status_is_nil?(:negative)
+
+      r3 = ~Rangeary(RangeExtd(6...6, true))
+      assert_equal [-InfF..InfF], r3
+      assert  r3.infinities(raw: true).guessed?(:positive), "Status should be guessed for #{r3.infinities(raw: true).inspect}"
+      r4 = ~Rangeary(InfF..InfF) # meaningless Range
+      assert_equal [nil..], r4   # Because Float information is lost for the meaningless Rnage
+      assert  r4.infinities(raw: true).status_is_nil?(:positive)
+      r5 = ~Rangeary(RangeExtd(?g...?g, true))
+      assert_equal [nil..], r5
+     # assert_equal RangeExtd::ALL, r5, "At the moment, (nil..)==RangeExtd::ALL (which is subject to change in the future?)"
+      assert  r5.infinities(raw: true).guessed?(:positive)
+
       assert_equal Rangeary(?a...?d, ?f..?z),   ~Rangeary(?d...?f, negative: ?a, positive: ?z)
       assert_equal Rangeary(?d...?f),          ~~Rangeary(?d...?f, negative: ?a, positive: ?z)
       assert_equal Rangeary(?a...?d, ?f..?z), ~~~Rangeary(?d...?f, negative: ?a, positive: ?z)
+
+      r2  =  Rangeary(6...8)
+      r2n = ~r2
+      assert       r2.infinities(raw: true).status_is_a?(:guessed, :positive)
+      assert       r2.infinities(raw: true).guessed?(:positive)
+      refute      r2n.infinities(raw: true).definite?(:positive)
+      assert      r2n.infinities(raw: true).guessed?(:positive), "Negated Range without an explicit infinity should have a status of :guessed"
     end	# def test_negation
 
 
     def test_posinega
       inf = RangeExtd::Infinity::POSITIVE
       assert_equal Rangeary(?a...?d, ?x..?z),  ~Rangeary(?d...?x, :negative => ?a, :positive => ?z)
-      assert_equal Rangeary(?a...?d, ?x..inf), ~Rangeary(?d...?x, :negative => ?a) 
+      assert_equal Rangeary(?a...?d, ?x..nil), ~Rangeary(?d...?x, :negative => ?a) 
       assert_raises(ArgumentError){ Rangeary(?t..?z,  :negative => -Float::INFINITY) }
-      TeeIO.suppress_io{|iorw|  # Inconsistent negative infinities are found: ["a", -Infinity] (=> a is used)
+      #TeeIO.suppress_io{|iorw|  # Inconsistent negative infinities are found: ["a", -Infinity] (=> a is used)
         assert_raises(ArgumentError){ Rangeary(1...8.5, :negative => ?a) }
-      }
+      #}
       assert_raises(ArgumentError){ Rangeary(1...8.5, negative: InfP, positive: -InfF) }
       assert_raises(ArgumentError){ Rangeary(1...8.5, positive: inf) }
 
@@ -1000,6 +1097,42 @@ end
 
       assert_equal 2, Rangeary(1..3, 5..8).size          # => 2
       assert_equal 7, Rangeary(1..3, 5..8).size_element  # => 7
+
+      ### section of Infinities (main doc)
+      ran1 = nil..Float::INFINITY
+      r1 = Rangeary(ran1).conjunction( RangeExtd::NONE )
+      assert_equal RaN, r1
+      r2 = r1.negation
+      assert_equal Rangeary(ran1), r2
+      assert_equal Rangeary(ran1), ~(Rangeary(nil..Float::INFINITY) * RangeExtd::NONE)
+
+      ran2 = ("f".."k")
+      rae1 = RaE("k"..nil, true)
+      assert_equal Rangeary("d"..."f", rae1), Rangeary(ran2, negative: "d").negation
+
+      r3 =  Rangeary(ran2, negative: "d")
+      r4 = ~r3
+      assert_equal Rangeary("d"..."f", rae1), r4
+      assert_equal "d", r4.infinities(raw: true)[:negative]
+      assert            r4.infinities(raw: true).definite?(:negative)
+      assert_nil        r4.infinities(raw: true)[:positive]
+      assert            r4.infinities(raw: true).guessed?(:positive)
+      err = assert_raises(ArgumentError){ Rangeary(r4, positive: "t") } # => specified/inherited positive infinity ("t") is not large enough or inconsistent: (<=> nil)
+      assert_match(/not large enough or inconsistent\b/, err.message)
+      r6 =   Rangeary(r3, positive: "t")  # OK: positive infinity is set.
+      assert_equal "d", r6.infinities(raw: true)[:negative]
+      assert            r6.infinities(raw: true).definite?(:negative)
+      r7 =  ~r6
+      assert_equal Rangeary("d"..."f", RangeExtd("k".."t", true)), r7
+      assert_equal r4[0],  r7[0]
+      refute_equal r4[1],  r7[1]
+
+      assert_equal Rangeary(-InfF...7), Rangeary(7..).negation
+      assert_equal Rangeary(7..),       Rangeary(7..).negation.negation
+      assert_equal Rangeary(...7),      Rangeary(7.., negative: nil).negation
+      assert_equal Rangeary(...7),   Rangeary(..nil).conjunction(Rangeary(7..)).negation
+      assert_equal Rangeary(...7), ~(Rangeary(..nil) * Rangeary(7..))
+
     end	# def test_in_document
 
 

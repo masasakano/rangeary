@@ -59,6 +59,170 @@ end
 # are inherited, though some methods, such as +push+ do not work because of
 # immutability of {Rangeary} objects.
 #
+# == Description
+#
+# The infinities are vital in the logical operation of Rangeary.
+# Without it, negation could not be definied, and other logical
+# operations are also closely related to it; for example, *subtraction*
+# is basically a combination of *negation* and *conjunction*.
+#
+# To determine what the positive and negative infinities for the given
+# elements is not a trivial task. In default, +nil+ is used except for
+# +Numerics+ (Integer, Rational, Float etc), for which +Float::INFINITY+
+# is used. Note that the default use to be
+# <tt>RangeExtd::Infinity::POSITIVE</tt> and  <tt>RangeExtd::Infinity::NEGATIVE</tt>
+# defined in {RangeExtd}[http://rubygems.org/gems/range_extd]
+# up to Rangeary Ver.1, where both beginless and endless Ranges were not
+# been introduced or supported. Rangeary Ver.2 changes the specification
+# to be in line with the latest Ruby Range.
+#
+# Alternatively, a user can specify their own infinities in
+# initialization of {Rangeary} with options of +positive:+ and
+# +negative:+. The boundaries at the opposite polarities usually should
+# match unless they are comparable or either of them is +nil+.
+#
+# Otherwise, ArgumentError might be
+# issued if they contradict the elements; for example, if a {Rangeary}
+# instance consists of an array of Integer Ranges (RangeExtd) like (3..8),
+# and yet if String "abc" is specified as an infinity, it *contradicts*
+# with the elements in the sense they are not comparable.
+#
+# Here are examples how infinities work with {Rangeary}. In the first
+# example, infinities are implicitly contained in the specified Range.
+# Then, the infinities are internally preserved throughout operations.
+# Note that the first set of 2 operations and the second set of a single operation
+# means the same.
+#
+#   r1 = Rangeary(nil..Float::INFINITY).conjunction( RangeExtd::NONE )
+#     # => Rangeary(RangeExtd::NONE)
+#   r2 = r1.negation
+#     # => Rangeary(nil..Float::INFINITY)
+#
+#   ~(Rangeary(nil..Float::INFINITY) * RangeExtd::NONE)
+#     # => Rangeary(nil..Float::INFINITY)
+#
+# In the second example below, a negative infinity of "+d+" is explicitly specified
+# for a Range of single alphabet String.
+#
+#   Rangeary("f".."k", negative: "d").negation
+#     # => Rangeary("d"..."f", "k"<..nil)
+#
+# where +"k"<..nil+ means a begin-exclude Range or +RangeExtd("k"..nil, true)+.
+#
+#
+# === Algorithm of determining default infinities
+#
+# Callers can supply user-defined infinity objects for both or either
+# positive and negative infinity and in that case they are accepted
+# as the infinities with the highest priority, though ArgumentError might be
+# issued if they contradict the elements; for example, if a {Rangeary}
+# instance consists of an array of Integer Ranges (RangeExtd) like +(3..8)+,
+# and yet if String "abc" is specified as an infinity, it *contradicts*
+# the elements in the sense they are not comparable.
+#
+# Internally, the {Rangeary} instance has a Hash extended with {Rangeary::Util::HashInf},
+# which can be obtained with <tt>#instances(raw: true)</tt>.
+# It has only 2 keys of +:negative+ and +:positive+, the values of which
+# are the current best-guessed or definite infinities.  The Hash also
+# holds status information for each polarity with 3 levels of
+#
+# 1. <tt>false</tt>
+# 2. <tt>:guessed</tt>
+# 3. <tt>:definite</tt>
+#
+# It is +false+ only when the Rangeary is absolutely void with no
+# information about the contents: +Rangeary(RangeExtd::NONE)+.
+#
+# If the user explicitly specifies a boundary in the optional arguments in
+# initialization of {Rangeary}, it is accepted in principle with an associated status of <tt>:definite</tt>.
+#
+# If the user-specified main arguments in initialization contain
+# a (potentially multiple) {Rangeary}, their defined infinities are
+# inherited with their associated statuses.
+#
+# Also, user-supplied Range-s or RangeExtd-s to the arguments in
+# initialization of {Rangeary} always have, except for
+# +RangeExtd::NONE+, concrete boundary values, which can be +nil+.
+#
+# If one of the boundaries of a Range (n.b., it is *not* Rangeary) contains either +nil+ or one of infinite values
+# (which is checked with +RangeExtd::Infinity.infinite?+, where in practice
+# a duck-typing check is performed, using the method +infinite?+), then
+# it is accepted as an infinite value with an associated status of <tt>:definite</tt>.
+#
+# Otherwise,
+#
+# 1. if a boundary value is a (real-type) Numeric, +Float::INFINITY+ (or
+#    its negative,
+# 2. or otherwise, +nil+
+#
+# is set as an infinity of the boundary with an associated status of +:guessed+.
+#
+# Note that the priority used to be different up to Rangeary Ver.1; +nil+ was not used and
+# instead the +RangeExtd::Infinity+ objects were used. It was because
+# the beginless Range (and endless Range before Ruby-2.6) has not been defined before
+# Ruby 2.7.  Now they are defined, it is only natural to use +nil+ as the
+# default infinities in both ends, hence the change in specification in
+# {Rangeary} Ver.2.
+#
+# Usually the arguments given in initialization of a {Rangeary} contain
+# more than one set of infinities candidate, unless only a single
+# argument of either Range (or its subclass instance) with no optional
+# arguments is given.  The priority is judged in the following order:
+#
+# 1. the optional arguments
+# 2. an associated status of <tt>:definite</tt>, <tt>:guessed</tt>, and
+#    <tt>false</tt> in this order
+#
+# If the associated statuses are equal for two or more inputs, the most
+# extreme one among them for each polarity is chosen.  For example, suppose
+# two instances of {Rangeary} are given in initialization of another
+# {Rangeary} and their negative infinities are "+b+" and "+c+".  Then,
+# because of
+#
+#   "b" < "c"
+#
+# the former ("+b+") is adopted as the new negative infinity.  Note that
+# the parameters given in the optional arguments have always higher
+# priority regardless.
+#
+#
+# The following examples demonstrate the specification.
+#
+#   Rangeary(7..).negation
+#     # => Rangeary(-Float::INFINITY...7)
+#   Rangeary(7..).negation.negation
+#     # => Rangeary(7..)
+#
+# Remember the default infinity for Float is +Float::INFINITY+. In this
+# case, however, the positive infinity was in practice specified by the
+# user to be +nil+ in the form of argument of +(7..)+ If you want to
+# specify the negative infinity instead, you must do it explicitly:
+#
+#   Rangeary(7.., negative: nil).negation
+#     # => Rangeary(...7)
+#
+# Alternatively, you can always use cojunction like (the following two mean the same):
+#
+#   Rangeary(..nil).conjunction(Rangeary(7..)).negation
+#     # => Rangeary(...7)
+#   ~(Rangeary(..nil) * Rangeary(7..))
+#     # => Rangeary(...7)
+#
+# The registered infinities for each instance is obtained as a Hash with
+# two keys of +:positive+ and +negative+ with the method {#infinities};
+# for example,
+#
+#   ran.infinities  # => { :negative => "a"
+#                   #      :positive => nil, }
+#
+# If you want to obtain the raw instance variable (Hash extended with
+# HashInf), specify the option <tt>raw: true</tt>:
+#
+#   ran.infinities(raw: true)
+#     # => <Hash(Inf): {:negative=>"a", :positive=>nil},
+#     #     status: {:negative=>:definite, :positive=>:guessed}>
+#
+#
 class Rangeary < Array
   undef_method :*, :+, :length, :reverse
 
@@ -71,74 +235,68 @@ class Rangeary < Array
 
   # Constructor
   #
-  # Arbitrary (positive) number of arguments can be given.
-  # (r1, [r2, ...])
+  # Arbitrary (positive) number of arguments of {Rangeary} or Range or its subclasses can be given.
+  # +(r1, [r2, ...])+
   #
-  # == Algorithm about the infinities
+  # === Note for Developers about the infinities
   #
-  # In {Rangeary} operations, "infinity" is essential.  Without it, negation
-  # could not be definied.  To determine what the positive and negative
-  # infinities for the given elements is not a trivial task.
+  # Instance variable +@infinities+ (Hash extended with {HashInf}) is defined.
+  # Method {#infinities} with the optional argument +raw: true+ returns it.
   #
-  # Callers can supply user-defined infinity objects for both or either
-  # positive and negative infinity and in that case they are accepted
-  # as the infinities with the highest priority, though ArgumentError might be
-  # issued if they contradict the elements; for example, if a {Rangeary}
-  # instance consists of an array of Integer Ranges (RangeExtd) like (3..8),
-  # and yet if String "abc" is specified as an infinity, it *contradicts*
-  # with the elements in the sense they are not comparable.
+  # Basically it has the positive and negative infinities AND their confidence levels.
+  # For example, a Numeric Range can have three or more types of infinities of
+  # +nil+, +Float::INFINITY+, and +RangeExtd::Infinity+ or something a user defines.
+  # Since it is not trivial to determine the infinities, they are usually implicitly
+  # guessed from Range/RangeExtd and in such cases the confidence level is not high.
+  # See {HashInf} for detail.
   #
-  # Alternatively, if the main argument contains one or more {Rangeary}
-  # instances, their infinities are inherited.  If their infinities are not
-  # identical to one another, warning may be issued if $VERBOSE is true, and
-  # the infinities are selected in the following priority order:
+  # In initialization, you can give a Hash+{Rangeary::Util::HashInf} infinities object directly
+  # at the end of the main arguments instead of the two keyword arguments
+  # (the latter of which have a higher priority if both are specified, but you should
+  # avoid such uses).  However, in that case, no other information
+  # about the main argument will be considered and so you should use it
+  # with extreme caution, or don't use it unless you know exactly what you are doing.
   #
-  # 1. If one or more user-supplied infinities are found, the smallest and
-  #    largest ones are accepted for the positive and negative infinities.
-  #    Note the consistency is not checked; that is, even if one or more of
-  #    the provided Range elements from which a {Rangeary} instance is about
-  #    to be constructed exceed the infinities, this does not warn. Obviously
-  #    subsequent operations may result in some unexpected result. Be warned.
-  # 2. Float::INFINITY.
-  # 3. RangeExtd::Infinity instances (RangeExtd::Infinity::POSITIVE
-  #    and RangeExtd::Infinity::NEGATIVE)
+  # @example negation(~), disjunction(+), conjunction(*), exclusive disjunction(^)
   #
-  # If none of the main arguments contains {Rangeary}, the elements of each
-  # Range are checked whether they have any comparable Numeric instances
-  # like Integer (but not Complex), and if so, Float::INFINITY is set
-  # as the infinities.  Otherwise, it falls back to the defaults of
-  # the RangeExtd::Infinity instances.
+  #    ran2 = ("f".."k")
+  #    rae1 = RangeExtd("k"..nil, true)
+  #    r3 = ~(Rangeary(ran2, negative: "d"))
+  #      # => Rangeary("d"..."f", rae1) == Rangeary("d"..."f", "k"<..nil)
+  #    r3.infinities(raw: true)[:negative]  # => "d"
+  #    r3*(..nil)  # => r3,
   #
-  # The registered infinities for each instance is obtained as a Hash with
-  # two keys of +:positive+ and +negative+ with the method {#infinities};
-  # for example,
+  #    r4 =   Rangeary(r3, negative: "a")
+  #    Rangeary(r4, negative: "b").infinities(raw: true)[:negative]  # => "b"
   #
-  #   ran.infinities  # => { :positive => RangeExtd::Infinity::POSITIVE,
-  #                   #      :negative => "aa" }
+  #    r5 =  ~Rangeary(r4)
+  #      # => Rangeary("a"..."d", "f".."k")
   #
-  # === Note for Developers about the infinity
+  #    r6 = r3 + Rangeary("c".."d", negative: "a")  # disjunction
+  #      # => Rangeary("c"..."f", "k"<..nil)
   #
-  # Instance variable @infinities (Hash) is defined.  The elements can be nil;
-  # for example, when only the element is RangeExtd::NONE.
-  # So, it is recommended to access with the {#infinities} method rather
-  # than accessing @infinities directly.
+  #    r7 = r3 * Rangeary("c".."d", negative: "a")  # conjunction
+  #      # => Rangeary("d".."d"), r7
+  #    r7.infinities(raw: true)[:negative]  # => "a"
   #
-  # At the moment, the infinities are guessed from the elements of the Range
-  # it contains and set (+guess_strict: false+ is given to {#_build_infinities}).
-  # If +guess_strict: true+ is given, unless a Range contains literally
-  # +Float::INFINITY+ etc, (the element of) @infinities is not set (remains nil).
-  # I hope it would work even if +guess_strict: true+ is given.  However,
-  # it is not tested properly!  Anyway, to check the consistency of
-  # the infinities is desirable, which is performed now, thanks to
-  # +guess_strict: false+ given to {#_build_infinities}.
+  #    r8 = r3 ^ (?e..?h)                           # exclusive disjunction (XOR)
+  #      # => Rangeary("d"..."e", "f".."h", "k"<..nil)
   #
-  # @param inarall [Object] An arbitrary number of either {Rangeary}, RangeExtd or Range objects (or its subclasses).
+  # @param inarall [Rangeary, Range, RangeExtd, Array<Rangeary, Range>] An arbitrary number of either {Rangeary} or Range (or its subclasses, notably RangeExtd).
   # @option positive [Object] :positive Object for positive infinity. In default Float::INFINITY for comparable Numeric or else nil. You may specify +RangeExtd::Infinity::POSITIVE+ or else.
   # @option negative [Object] :negative Object for negative infinity. In default -Float::INFINITY for comparable Numeric or else nil. You may specify +RangeExtd::Infinity::NEGATIVE+ or else.
   def initialize(*inarall, positive: false, negative: false)
+    if inarall.last.respond_to?(:definite?) && inarall.last.respond_to?(:guessed?)
+#print "DEBUG01:init: inarall[-1]=";p [inarall[-1], inarall[-1].respond_to?(:status)]
+      flag_skip_adjut_infinity = true
+      @infinities = inarall.pop  # inarall is destructively modified.
+    else
+      @infinities = HashInf.construct()
+    end
+    @infinities.merge_hashinf!({ negative: negative, positive: positive }, force: true)
     #@infinities =  { :negative => nil, :positive => nil }
-    @infinities =  { negative: negative, positive: positive }
     #opts = {}.merge @infinities  ########## redundant!
+#print "DEBUG02:init: @infinities @inarall(true)=";p [@infinities, @infinities.respond_to?(:status)]
 
     if inarall.size < 1
       super [RangeExtd::NONE]  # Since Ver.1
@@ -147,8 +305,9 @@ class Rangeary < Array
     end
 
     # This uses information of {Rangeary#infinities} in the arguments if there ia any.
-    @infinities = _build_infinities(@infinities, self.class.flatten_no_rangeary(*inarall)) # set @infinities (wherever possible)
+    @infinities = _build_infinities(@infinities, self.class.flatten_no_rangeary(*inarall)) if !flag_skip_adjut_infinity # set @infinities (wherever possible)
 
+#print "DEBUG03:init: @infinities @inarall(true)=";p [@infinities, @infinities.respond_to?(:status)]
 #print "DEBUG04:init: inarall=";p inarall
     # Unfold Rangeary into Array of Arrays and convert Range-s into RangeExtd-s
     in_ranges = inarall.map{|i|
@@ -197,12 +356,23 @@ class Rangeary < Array
     super(arRange)
     self.freeze
     _validate_infinities
+#print "DEBUG99:init: @infinities @inarall(true)=";p [@infinities, @infinities.respond_to?(:status)]
   end	# def initialize(*inarall, positive: false, negative: false)
 
 
   # Validates the given infinities
   #
   # Negative should be smaller than any and positive be larger.
+  #
+  # If a new infinity is an infinity (respond_to? infinite?) and has
+  # the right polarity, or if it is nil, it is automatically accepted.
+  # For example, the positive Infinity can be defined as +RangeExtd::Infinity::POSITIVE+
+  # even when the existing +Rangeary#begin+ is +Float::INFINITY+
+  #
+  # Theoretically, the following policy would be possible, but it is not adopted:
+  #
+  # # Allowing to specify Rangeary(..?d, negative: ?a, positive: ?z),
+  # # because nil is basically "undefined" rather than infinite.
   #
   # @return [void]
   # @raise [ArgumentError] if they are contradictory.
@@ -211,7 +381,7 @@ class Rangeary < Array
     #return if [neg, pos].include?(nil) || [neg, pos].include?(false)
 
     msg = "specified/inherited negative and positive infinities are contradictory (such as reversed polarities or a combination of Float::INFINITY and RangeExtd::Infinity): [n,p]=#{[neg, pos].inspect}"
-    begin 
+    begin
       if ![neg, pos].include?(nil) && ![neg, pos].include?(false) && neg > pos
         raise ArgumentError, msg
       end
@@ -223,64 +393,122 @@ class Rangeary < Array
     return if empty_element?
 
     fmt = "specified/inherited %s infinity (%s) is not %s enough or inconsistent: (<=> %s)"
-    msg = sprintf fmt, "negative", neg.inspect, "small", self.begin.inspect
-    begin
-      if neg.nil? ||
-         false == neg ||
-         self.begin.nil? ||   # Allowing to specify Rangeary(..?d, negative: ?a, positive: ?z), because nil is basically "undefined" rather than infinite.
-         self.begin == neg ||
-         self.begin >  neg
-         #(RangeExtd::Infinity.infinite?(neg) && neg.negative?) ||
-        # OK
+    hsp = {
+      negative: {
+        sm_lg: "small",
+        metho: :begin,
+        oper:  :>   # OK if self.begin > new-infinity(:negative)
+      },
+      positive: {
+        sm_lg: "large",
+        metho: :end,
+        oper:  :<   # OK if self.end < new-infinity(:positive)
+      },
+    }
+
+    # Gets a non-nil non-infinity boundary value if there is any, else +false+.
+    # NOTE self.begin|end is never false, because RangeExtd would not accept it.
+    valcmp =
+      if (self.begin.nil? || RangeExtd::Infinity.infinite?(self.begin))
+        if (self.end.nil? || RangeExtd::Infinity.infinite?(self.end))
+          false
+        else
+          self.end
+        end
       else
-        raise ArgumentError, msg
+        self.begin
       end
-    rescue ArgumentError
-        raise ArgumentError, msg
+
+    hsp.each_pair do |posneg, hsval|
+      ea_inf = @infinities[posneg]  # Infinity value
+      ea_val = self.send(hsval[:metho])  # Current Range boundary value to compare with
+      msg = sprintf fmt, posneg.to_s, ea_inf.inspect, hsval[:sm_lg], ea_val.inspect
+      is_pol = (posneg.to_s+"?").to_sym  # either :positive? or :negative?
+      next if false == ea_inf  # infinity undefined (uninitialized).
+      next if ea_inf.nil?
+      next if ea_val == ea_inf
+      begin
+        if RangeExtd::Infinity.infinite?(ea_inf) && ea_inf.respond_to?(is_pol) && ea_inf.send(is_pol)
+          # To swap RangeExtd::Infinity <=> Float::INFINITY is allowed as long as
+          # the element of the range does not contradict it, e.g.,
+          # setting Float::INFINITY as an infinity is not allowed for a String Range.
+          next if false == valcmp
+          next if (ea_inf <=> valcmp)  # namely if it is non-nil (0, 1, or 2)
+          raise ArgumentError, posneg.to_s.capitalize+" infinity not comparable with (#{valcmp})."
+        end
+        next if !ea_val.nil? && ea_val.send(hsval[:oper], ea_inf)
+      rescue ArgumentError
+        # raises an exception as follows
+      end
+      raise ArgumentError, msg
     end
 
-    msg = sprintf fmt, "positive", pos.inspect, "large", self.end.inspect
-    begin
-      if pos.nil? ||
-         false == pos ||
-         self.end.nil? ||   # Allowing to specify Rangeary(..?d, negative: ?a, positive: ?z), because nil is basically "undefined" rather than infinite.
-         self.end == pos ||
-         self.end <  pos
-         #(RangeExtd::Infinity.infinite?(neg) && neg.negative?) ||
-        # OK
-      else
-        raise ArgumentError, msg
-      end
-    rescue ArgumentError
-        raise ArgumentError, msg
-    end
+    #msg = sprintf fmt, "negative", neg.inspect, "small", self.begin.inspect
+    #begin
+    #  if neg.nil? ||
+    #     false == neg ||
+    #     self.begin.nil? ||   # Allowing to specify Rangeary(..?d, negative: ?a, positive: ?z), because nil is basically "undefined" rather than infinite.
+    #     self.begin == neg ||
+    #     self.begin >  neg
+    #     #(RangeExtd::Infinity.infinite?(neg) && neg.negative?) ||
+    #    # OK
+    #  else
+    #    raise ArgumentError, msg
+    #  end
+    #rescue ArgumentError
+    #    raise ArgumentError, msg
+    #end
+
+    #msg = sprintf fmt, "positive", pos.inspect, "large", self.end.inspect
+    #begin
+    #  if pos.nil? ||
+    #     false == pos ||
+    #     self.end.nil? ||   # Allowing to specify Rangeary(..?d, negative: ?a, positive: ?z), because nil is basically "undefined" rather than infinite.
+    #     self.end == pos ||
+    #     self.end <  pos
+    #     #(RangeExtd::Infinity.infinite?(neg) && neg.negative?) ||
+    #    # OK
+    #  else
+    #    raise ArgumentError, msg
+    #  end
+    #rescue ArgumentError
+    #    raise ArgumentError, msg
+    #end
   end
   private :_validate_infinities
 
 
   # Returns Hash of the defined infinities of self with keys of +:positive+ and +:negative+
   #
-  # Internally, the infinities (Hash) remains undefined.  For example,
+  # Internally, the infinities (Hash, extended with {HashInf}) are usually "guessed"
+  # from the provided Range etc and inherited. In the extreme case of
   #
   #    Rangeary.new(RangeExtd::NONE)
   #
-  # would not have a pair of defined infinities and they are open to change,
+  # they remain undefined (or flagged as unknown) because there is no way to
+  # guess what its infinities are, in which case they are open to change,
   # depending on following operations.
   #
-  # If either or both the infinities are undefined, they are converted to something
+  # If the infinities are undefined (unknown), they are converted to something
   # appropriate for the situation before the value is returned, where
-  # a best-guess approach is taken.
+  # a best-guess approach is taken.  This method returns them.
   #
-  # If you *must* get the internal instance variable, do as follows:
+  # If you *must* get the internal instance variable, specify +raw+ option to be true or do:
   #
   #   your_rangeary.instance_variable_get("@infinities")
   #
+  # @param raw [Boolean] if true (Def: false), return +@infinities+
   # @return [Hash] keys of :positive and :negative.  The values are never false.
-  def infinities
-    _get_significant_infinities(@infinities)
+  def infinities(raw: false)
+    raw ? @infinities : _get_significant_infinities(@infinities)
   end
 
   # Returns an infinities Hash with both ends being signifincant (never false, but maybe nil)
+  #
+  # Note this returns a standard Hash as opposed a Hash extended with {Util::HashInf}
+  # and the Hash contents of the returned value is modified only when
+  #   @infinities.status_is_nil?(posneg)
+  # is true for +posneg+ of +:negative+ and +:positive+.
   #
   # @param ininf [Hash] keys of :positive and :negative.
   # @return [Hash] keys of :positive and :negative.  The values are never false.
@@ -289,7 +517,7 @@ class Rangeary < Array
       case ininf[:negative]
       when false
         return( {negative: nil, positive: nil} )
-      when -Float::INFINITY 
+      when -Float::INFINITY
         return ininf.merge({positive: Float::INFINITY})
       when RangeExtd::Infinity::NEGATIVE
         return ininf.merge({positive: RangeExtd::Infinity::POSITIVE})
@@ -299,7 +527,7 @@ class Rangeary < Array
     elsif false == ininf[:negative]
       # positive is never false.  See above
       case ininf[:positive]
-      when Float::INFINITY 
+      when Float::INFINITY
         return ininf.merge({negative: -Float::INFINITY})
       when RangeExtd::Infinity::POSITIVE
         return ininf.merge({negative: RangeExtd::Infinity::NEGATIVE})
@@ -312,30 +540,6 @@ class Rangeary < Array
     end
   end
   private :_get_significant_infinities
-
-  # Returns @infinities where nil values are replaced with something significant.
-  #
-  # Best guess approach is taken.
-  #
-  # @return [Hash] keys of :positive and :negative.  The values are never nil.
-  def infinities_old
-    defhs = {
-      :positive => RangeExtd::Infinity::POSITIVE,
-      :negative => RangeExtd::Infinity::NEGATIVE,
-    }
-    hsret = {}.merge @infinities
-    if hsret[:positive].nil?
-      return defhs if hsret[:negative].nil?
-      hsret[:positive] = (is_num_type?(hsret[:negative]) ?  Float::INFINITY : defhs[:positive])
-      return hsret
-    end
-    if hsret[:negative].nil?
-      hsret[:negative] = (is_num_type?(hsret[:positive]) ? -Float::INFINITY : defhs[:negative])
-      return hsret
-    end
-
-    hsret
-  end
 
 
   # If self covers the entire range?
@@ -645,10 +849,28 @@ class Rangeary < Array
 
   # Subtraction.
   #
+  # == Deverloper's note
+  #
+  # Handling of infinities is a little tricky.
+  #
+  # If nothing was considered,
+  #   Rangeary(6..nil) - (6...8)
+  # would return 
+  #   Rangeary([8..Float::INFINITY])
+  # because the first step of operation, negation of +(6...8)+, would
+  # contain +Float::INFINITY+ and then the standard conjunction would regard it
+  # as the *definite* sign of +Float::INFINITY+ being the correct infinity,
+  # as opposed to +nil+.
+  #
+  # In the case, only the infinity that appears in the user-supplied formula is +nil+.
+  # Therefore, at least the positive infinity should be recognized as +nil+,
+  # whereas the negative infinity remains uncertain.
+  #
   # @param r [Rangeary, RangeExtd, Range]
   # @return [Rangeary] 
   def subtraction(r)
-    conjunction( Rangeary.new(r).negation )
+    infs = _get_infinities_from_multiple(self, r)
+    conjunction_core(self, Rangeary.new(r, **infs).negation, infs: infs)
   end
 
   alias_method :-, :subtraction
@@ -664,6 +886,16 @@ class Rangeary < Array
 
   alias_method :&, :conjunction
   alias_method :*, :conjunction
+
+  ## Internal version of Conjunction, where +infinities+ can be given.
+  ##
+  ## @param r [Rangeary, RangeExtd, Range]
+  ## @param infs [Hash] ({HashInf}) if supplied, +infinities+ are NOT guessed from the main arguments. 
+  ## @return [Rangeary] 
+  #def conjunction_core(r, infs: nil)
+  #  self.class.conjunction_core(self, r, infs: infs)
+  #end
+  #private :conjunction_core
 
 
   # Negation (class method).
@@ -690,15 +922,21 @@ class Rangeary < Array
     to_a.each do |eachr|
 
       # ALL -> NONE (specifying infinity parameters (positive and negative) is important.)
-      return Rangeary.new(RangeExtd::NONE, :positive => @infinities[:positive], :negative => @infinities[:negative]) if RangeExtd::ALL == eachr
+      return Rangeary.new(RangeExtd::NONE, @infinities) if RangeExtd::ALL == eachr
+      #return Rangeary.new(RangeExtd::NONE, :positive => @infinities[:positive], :negative => @infinities[:negative]) if RangeExtd::ALL == eachr
 
       # null(NONE) -> ALL
+      #
+      # Note there should be no more than 1 null Range/RangeExtd in Rangeary.
       if eachr.null? 
+#print "DEBUG:242:neg: eachr=";p eachr
         begin
           _ = 1.0 * eachr.begin
-          return (-Float::INFINITY..Float::INFINITY)
+#print "DEBUG:243:neg: @infinities=";p @infinities
+          return Rangeary.new(-Float::INFINITY..Float::INFINITY, @infinities)
         rescue TypeError	# XXXX can't be coerced into Float
-          return Rangeary.new(infinities[:negative]..infinities[:positive], positive: @infinities[:positive], negative: @infinities[:negative])
+          return Rangeary.new(infinities[:negative]..infinities[:positive], @infinities)
+          #return Rangeary.new(infinities[:negative]..infinities[:positive], positive: @infinities[:positive], negative: @infinities[:negative])
         end
       end
 
@@ -748,7 +986,8 @@ class Rangeary < Array
 
     #Rangeary.new(arran, :positive => infinities[:positive], :negative => infinities[:negative])
     #Rangeary.new(arran)  ################ infinities
-    Rangeary.new(arran, positive: @infinities[:positive], negative: @infinities[:negative])
+    #Rangeary.new(arran, positive: @infinities[:positive], negative: @infinities[:negative])
+    Rangeary.new(arran, @infinities)  # @infinities is inherited as it is.
   end	# def negation()
 
   alias_method :~@, :negation
@@ -764,77 +1003,8 @@ class Rangeary < Array
   # @param r2 [Rangeary, RangeExtd, Range]
   # @return [Rangeary]
   def self.conjunction(r1, r2)
-
-#print "DEBUG21:conj: r1,r2=";p [r1, r2]
-    r1 = Rangeary.new(r1) if ! defined? r1.first_element
-    r2 = Rangeary.new(r2) if ! defined? r2.first_element
-#print "DEBUG22:conj: r1,r2=";p [r1, r2]
-
-    hsinf = _get_infinities_from_multiple(r1, r2)
-    return Rangeary.new(RangeExtd::NONE, **hsinf) if r1.null? || r2.null?
-    return Rangeary.new(r1, **hsinf) if r2.all?
-    return Rangeary.new(r2, **hsinf) if r1.all?
-
-    # Getting inherited options (if Rangeary is given) for the later use.
-    _ = _validate_select_infinities [r1, r2].map(&:infinities)
-    # hsInherited = _validate_select_infinities [r1, r2].map(&:infinities)
-    # hsInherited = _best_inherited_infinities [r1, r2].map(&:infinities)
-
-#print "DEBUG31:conj: r1,r2=";p [r1, r2]
-    # Initialisation
-    a1 = r1.to_a
-    a2 = r2.to_a
-#print "DEBUG32:conj: inherit=";p hsInherited
-    #rc = Rangeary.new( RangeExtd::NONE, **hsInherited )
-    rc = Rangeary.new( RangeExtd::NONE, **hsinf )  # hsinf is essential to define @infinities
-
-#print "DEBUG33:conj: rc=";p rc
-
-    if a1.empty? || a2.empty?
-      return rc
-    end
-
-    ### Algorithm
-    # Conditions: Both a1 and a2 are sorted in order of #begin().
-    # a1 is a reference array of RangeExtd
-    #  Then, Sigma(i=0..(a2.size-1)) a2[i]*a1[j=0..-1]  => Returned Rangeary
-    #
-    # In reality, I put some tricks to avoid unnecessary calculation
-    # for the sake of the processing speed.  But essentially
-    # it is a very simple algorithm.
-    #
-    last_a1index = 0
-    a2.each do |ea2|
-      a1.each_with_index do |ea1, ind|
-        # A bit of trick just to avoid unnecessary process
-        next  if ind < last_a1index	# skip
-
-        # For Ruby-2.6 Endless Range, comparable_end() is employed.
-        # Note: this comparison ignores @infinities even if set,
-        #   because @infinities may not be defined in the arguments!
-        #   Anyway, nothing should be larger than the upper limit (as tested below),
-        #   and so this should be fine.
-        #
-        # Now, considering Ruby-2.7 Beginless Range, too.
-        ran1 = comparable_beginend(ea1)
-        ran2 = comparable_beginend(ea2)
-        break if ran2.end < ran1.begin	# Completely out of range
-        if ran1.end < ran2.begin	# Completely out of range
-          last_a1index = ind if last_a1index < ind
-          next
-        end
-
-        # Core - Perform conjunction.
-        pq1 = conjunctionRangeExtd(ea1, ea2)	# => Rangeary.conjunctionRangeExtd()
-        if ! pq1.empty?
-          rc += Rangeary.new(pq1)  ################################ infinities?
-          last_a1index = ind
-        end
-      end	# a1.each_with_index do |ea1, ind|
-    end		# a2.each do |ea2|
-
-    rc
-  end	# def self.conjunction(r1, r2)
+    conjunction_core(r1, r2)
+  end
 
 
   # Returns the infinity "end" that is comparable.
@@ -936,11 +1106,11 @@ class Rangeary < Array
   # accept any Ranges that are not Range#valid, if such an invalid Range
   # is given RangeError is raised.  This includes Ranges that contains
   # +RangeExtd::Nowhere::NOWHERE+ (except for +RangeExtd::NONE+).
-  # 
+  #
   # The optional argument of Hash +infinities+ having boolean values for
   # two keys of :positive and :negative can be given, in order to
   # explicitly specify your infinities.
-  # 
+  #
   # @overload self.comparable_beginend(ran, infinities: nil)
   #   Range or RangeExtd
   #   @param ran [Range, RangeExtd]
@@ -948,39 +1118,24 @@ class Rangeary < Array
   # @overload self.comparable_beginend(ran, vend, infinities: nil)
   #   Begin and End values for Range
   #   @param ran [Object]
-  #   @param vend [Object] 
+  #   @param vend [Object]
   #   @param infinities [Hash<Boolean>] two-elements of :positive and :negative
-  #  
+  #
   # @return [RangeExtd] exclude statuses for begin and end follow the input.
   # @raise [RangeError] if ran is not Range#valid?
   def self.comparable_beginend(ran, vend=Object, infinities: nil)
-    if ran.respond_to? :is_none?
-      if ran.is_none?  # Range should have the method.
-        return RangeExtd::NONE
-      end
-      _ = RangeExtd(ran)         # may raise RangeError
-    else
-      ran = RangeExtd(ran, vend) # may raise RangeError
-    end
+    comparable_beginend_core(ran, vend, infinities: infinities)  # In Rangeary::Util
+  end
 
-    ar_inf = [infinities[:negative], infinities[:positive]] if infinities
-
-    is_numeric = [:begin, :end].any?{|method| ran.send(method).respond_to? :to_int}
-    arret = [:begin, :end].map.with_index{ |method, i|
-      obj = ran.send(method)
-      if obj.nil?
-        if infinities && ar_inf[i]  # infinity of nil or false is ignored.
-          ar_inf[i]
-        else
-          # plus-minus is reversed only for "begin", like RangeExtd::Infinity::NEGATIVE
-          val = (is_numeric ? Float::INFINITY : RangeExtd::Infinity::POSITIVE)
-          (i == 0) ? -val : val
-        end
-      else
-        obj
-      end
-    }
-    RangeExtd(arret[0], arret[1], (ran.respond_to?(:exclude_begin?) ? ran.exclude_begin? : false), ran.exclude_end?)
+  # Similar to {Rangeary.comparable_end} but for +begin+.
+  #
+  # Introduced for Ruby-2.7 beginless Range.
+  #
+  # @param (see #Rangeary.comparable_end)
+  # @return [Object]
+  # @raise [RangeError] if ran is not Range#valid?
+  def self.comparable_begin(ran, infinities: nil)
+    comparable_beginend(ran, infinities: infinities).begin
   end
 
   # Returns the array sorted, based on (1) the begin objects and their boundary state,
@@ -990,106 +1145,15 @@ class Rangeary < Array
   # @param ar [<Range, RangeExtd>] Arbitrary number.
   # @return [Array<Range, RangeExtd>]
   def self.sort_ranges(*ar)
-#print "DEBUG220:sort: ar=";p [ar, ar.flatten, ar.flatten.map{|i| i.is_none? rescue i}]
-    ar.flatten.sort{ |a,b|
-      err_msg_ab = "invalid parameter (#{a.inspect} or #{b.inspect})."
-
-      if a.is_none?
-        next (b.is_none? ? 0 : -1)
-      elsif b.is_none?
-        next 1
-      end
-
-      # Since Ruby-2.6, the end can be nil (Endless Range).
-      # Before Ruby-2.6, they used to raise Exception (ArgumentError) in Range
-      # and so they would not have sneaked in to RangeExtd, either.
-      # The following is in that sense meaningful only for Ruby 2.6 and later.
-      #
-      # Even in Ruby-2.7, this routine need no change, because nil is
-      # correctly handled.
-      ends = { :a => a, :b => b }
-      #begs = {}
-      ends.each_pair do |k, v|
-        #ran = comparable_beginend(v)
-        #begs[k], ends[k] = ran.begin, ran.end
-        ends[k] = comparable_end(v)
-      end
-
-      # ret = begs[:a] <=> begs[:b]
-      ret = a.begin <=> b.begin  # Without filtering with comparable_beginend()
-      case ret
-      when -1, 1
-        ret
-      when 0
-        a_exc_begin = (a.exclude_begin? rescue false)
-        b_exc_begin = (b.exclude_begin? rescue false)
-        if (a_exc_begin ^ b_exc_begin)
-          if a_exc_begin	# but not b
-            1
-          else
-            -1
-          end
-        else	# <= (a.exclude_begin? == b.exclude_begin?)
-          ret = ends[:a] <=> ends[:b]
-          case ret
-          when -1, 1
-            ret
-          when 0
-            if (a.exclude_end? && b.exclude_end?)
-              0
-            elsif a.exclude_end?	# but not b
-              -1
-            else	# <= b.exclude_end?  but not a
-              1
-            end		# if (a.exclude_end? && b.exclude_end?)
-          when nil
-            # This should not happen for Range, let alone RangeExtd.
-            # But could be the case for a user-defined class.
-            if ends[:a].nil? && ends[:b].nil?
-              0
-            elsif ends[:a].nil?
-              -1
-            elsif ends[:b].nil?
-               1
-            else
-              raise(TypeError, err_msg_ab)
-            end
-          else	# case ret # ends[:a] <=> ends[:b]
-            raise(TypeError, err_msg_ab)
-          end	# case ret # ends[:a] <=> ends[:b]
-        end	# if (a.exclude_begin? ^ b.exclude_begin?)
-      when nil	# case ret #(a.begin <=> b.begin)
-        if a.begin.nil? && b.begin.nil?
-          0
-        elsif a.begin.nil?
-          -1
-        elsif b.begin.nil?
-           1
-        else
-          raise(TypeError, err_msg_ab)
-        end
-      else	# case ret #(a.begin <=> b.begin)
-        raise(TypeError, err_msg_ab)
-      end	# case ret #(a.begin <=> b.begin)
-    }	# ar.sort{ |a,b|
-  end	# def self.sort_ranges(ar)
+    sort_ranges_core(*ar)  # In Rangery::Util
+  end
 
   # Return a flattened Array where {Rangeary} is not flattened.
   #
   # @param arin [Array<Range, RangeExtd, Rangeary, Array>]
   # @return [Array<Range, RangeExtd, Rangeary>]
   def self.flatten_no_rangeary(*arin)
-    arret = []
-    arin.each do |val|
-      if val.respond_to?(:infinities) || val.respond_to?(:exclude_end?)
-        arret << val
-      elsif val.respond_to?(:flatten)
-        arret.concat send(__method__, *val)
-      else
-        raise ArgumentError, "Argument Array must consist of only Range (RangeExtd) or Array (Rangeary)"
-      end
-    end
-    arret
+    flatten_no_rangeary_core(*arin)
   end
 
   ####################
@@ -1115,53 +1179,6 @@ class Rangeary < Array
       end
     }
   end
-
-  # Get the instance variable (Hash) @infinities
-  #
-  # @param in_infs [Hash] infinities template with keys: :positive, :negative
-  # @param arin [Array<Range, RangeExtd, Rangeary>]
-  # @param strict [Boolean] if true (Def: false), set only when the value satisfies RangeExtd::Infinity.infinite?
-  # @param leave_existing [Boolean] if true (Def: false), the existing non-nil values are not updated.
-  # @return [Array] Best guess for @infinities
-  def _best_guessed_infinities(in_infs, arin, strict: false, leave_existing: false)
-    reths = {}.merge in_infs
-#print "DEBUG50:bestguessed: reths,ar=";p [reths, arin]
-    # Making the best effort to guess.
-    ar_rae = [RangeExtd::Infinity::NEGATIVE, RangeExtd::Infinity::POSITIVE]
-    ar_num = [-Float::INFINITY, Float::INFINITY]
-    [arin].flatten.each do |ea|
-      hs = { negative: ea.begin, positive: ea.end }
-      reths.each_key do |ek|
-#print "DEBUG53:bestguessed: ea, ek,hs,reths=";p [ea, ek, hs[ek],reths[ek]]
-        errmsg = "Contradictory reference value #{hs[ek].inspect} for infinity (Existent: #{reths[ek].inspect}) is found, but ignored."
-        next if !hs[ek]
-        case reths[ek]
-        when nil
-          reths[ek] =  _guessed_infinity(ek, hs[ek], strict: strict)
-          next
-        when *ar_rae
-#print "DEBUG54:bestguessed: guessed=#{(_guessed_infinity(ek, hs[ek], strict: strict) || reths[ek])}\n" if !leave_existing
-          reths[ek] = (_guessed_infinity(ek, hs[ek], strict: strict) || reths[ek]) if !leave_existing   # Update whatever.
-          next
-        when *ar_num
-          # Once Float::INFINITY is set, it will unchange.
-          next if ar_num.include? _guessed_infinity(ek, hs[ek])  # Consistent
-          next if ar_rae.include? _guessed_infinity(ek, hs[ek])  # Inconsistent, but ignore (Prev: Range::Inf, Given: Float::INF)
-          warn errmsg if !$VERBOSE.nil?
-          next
-        else
-          # Once User's value is set, it will unchange.
-          next if ar_rae.include? _guessed_infinity(ek, hs[ek])  # Inconsistent, but ignore (Prev: User, Given: Infinity)
-          warn errmsg if !$VERBOSE.nil?
-          next
-        end
-      end
-    end
-################ for nil..nil, this should be  reths={:positive=>nil, :negative=>-nil}
-#print "DEBUG59:bestguessed: reths=";p reths
-    reths
-  end
-  private :_best_guessed_infinities
 
   # Instance method version
   #
@@ -1261,10 +1278,10 @@ class Rangeary < Array
     reths.merge_hashinf!(opts, force: true)
 #print "DEBUG63:get: [reths]=";p [reths]
 
-    # Read @infinities from Rangeary-s in arin, if exits
-    #reths = self.class.send(:_validate_select_infinities, inherited_infs, reths)  ###############
-    #_ = self.class.send(:_validate_select_infinities, [reths], @infinities) # Just to check
-    _ = _validate_select_infinities([reths], @infinities) # Just to check
+    ## Read @infinities from Rangeary-s in arin, if exits
+    ##reths = self.class.send(:_validate_select_infinities, inherited_infs, reths)  ###############
+    ##_ = self.class.send(:_validate_select_infinities, [reths], @infinities) # Just to check
+    #_ = _validate_select_infinities([reths], @infinities) # Just to check
 
     reths
 
@@ -1511,6 +1528,7 @@ class Rangeary < Array
 
     end		# inRanges[1..-1].each do |eachr|
 
+#print "DEBUG79:mer: newRanges: ";p newRanges
     _uniq_empty_ranges(newRanges)
   end	# def _merge_overlaps(inAr)
   private :_merge_overlaps
@@ -1591,21 +1609,24 @@ class Rangeary < Array
   private :_uniq_empty_ranges
 
 
-  # Replaces the invalid inf..inf Range with NONE
+  # Replaces the meaningless inf..inf Range with NONE
   #
   # @param arin [Array<Range, RangeExtd>]
   # @return [Array]
   def _replace_inf_inf(arin)
     arin.map{ |er|
       raise 'contact the code developer' if !defined? er.exclude_end?  # Sanity check.
-      arran = [er.begin, er.end] # to_a raises RangeError for Ruby 2.6 Endless Range
-      if (( arran.all?{ |ea| RangeExtd::Infinity.infinite?(ea) } &&
-           (arran.all?(&:positive?) || arran.all?(&:negative?)) ))
-          #(arran.all?(&:nil?))) # allowed in Ruby 2.7+
-        RangeExtd::NONE
-      else
-        er
-      end
+      # Note: er.to_a raises RangeError for Ruby 2.6 Endless Range
+      (_infinites_with_same_polarity?(er.begin, er.end) ? RangeExtd::NONE : er)
+
+      #arran = [er.begin, er.end]
+      #if (( arran.all?{ |ea| RangeExtd::Infinity.infinite?(ea) } &&
+      #     (arran.all?(&:positive?) || arran.all?(&:negative?)) ))
+      #    #(arran.all?(&:nil?))) # allowed in Ruby 2.7+
+      #  RangeExtd::NONE
+      #else
+      #  er
+      #end
     }
   end
   private :_replace_inf_inf
@@ -1628,121 +1649,6 @@ class Rangeary < Array
   end
   private_class_method :_best_inherited_infinities
 
-  #== Logical conjunction of two RangeExtd
-  #
-  # To assure this logical conjunction meaningful,
-  # the objects that consist of RangeExtd objects have to be
-  # monotonic (increase), namely, for any potential element,
-  # x_n and x_m, within the given range,
-  #    (x_n <=> x_m) == 1  if  (n > m),
-  # have to be true.  In other words, the derivative must be always
-  # non-negative.
-  #
-  # For example, (?a..?d) and (?x..?z) satisfies this condition.
-  # However, ('d'..'gg') does not, as follows.
-  #   rd = RangeExtd('d'..'gg')
-  #   rf = RangeExtd('f'..'h')
-  #   Rangeary.conjunctionRangeExtd(rd, rf)  # => ('f'..'gg')
-  #
-  # @note If you give a built-in Range object(s) for the arguments,
-  #   make sure they are valid, that is, Range#valid? returns true.
-  #
-  #=== Algorithm
-  #
-  #[st means status. - true if excl; Estimate (Init(in|ex),Fini(in|ex))]
-  #[b4 <= af] (sort!)
-  #
-  #(1) Init = af[0],  Init.st=af[0].st
-  #   If (b4[0]==af[0]),   then Init.st = ( b4[0].ex || af[0].ex)
-  #(2) Fini = [b4[-1], af[-1]].min, which belongs to (b4|af)
-  #   If (b4[-1]==af[-1]), then Fini.st = (b4[-1].ex || af[-1].ex), otherwise nil for now.
-  #(3) if (Init > Fini) => none.
-  #   *---*  => ....
-  #        *--*     ....
-  #(4) if (Init == FiniMax), then Fini.st=b4[-1].st
-  # (4-1) if (Init.in&&Fini.in),  => Single-Number-Range(InitCand(in))
-  #  *--I  => ...I
-  #     I--*     I...
-  # (4-2) else, => none
-  #(5) if (Init < FiniMax)
-  # (5-1) if Fini belongs to b4, Fini.st=b4[-1].st
-  #  *---* => .*--* 
-  #   *---*
-  # (5-2) if Fini belongs to af, Fini.st=af[-1].st
-  #  *---* => .*-* 
-  #   *-*
-  # (5-3) if Fini belongs to both, Fini.st is defined already.
-  #  *---* => .*--* 
-  #   *--*
-  # 
-  # @param r1 [RangeExtd] Can be Range
-  # @param r2 [RangeExtd] Can be Range
-  # @return [RangeExtd]
-  # 
-  def self.conjunctionRangeExtd(r1, r2)
-
-    [r1, r2].each do |er|
-      return er if er.is_none?
-    end
-
-    r = *( sort_ranges([RangeExtd(r1), RangeExtd(r2)]) )	# => Rangeary.sort_ranges
-
-    ## Note: the end product will be (cBeg(:stBeg), cEnd(:stEnd))
-    #    where :stBeg and :stEnd mean exclude_(begin|end)?
-
-    # Set the candidate begin value.
-    cBeg  = r[1].begin
-    if r[0].begin == r[1].begin
-      stBeg = (r[1].exclude_begin? || r[0].exclude_begin?)
-    else
-      stBeg =  r[1].exclude_begin?
-    end
-
-    # Set the candidate end value.  (comparable_end() for Ruby-2.6 Endless Range)
-    # Note: this comparison ignores @infinities even if set,
-    #   because @infinities may not be defined in the arguments!
-    #   Anyway, nothing should be larger than the upper limit
-    #   and so this should be fine.
-    if comparable_end(r[0]) == comparable_end(r[1])
-      cEndOrig = r[1].end
-      cEnd     = comparable_end(r[1])
-      stEnd = (r[0].exclude_end? || r[1].exclude_end?)
-    else
-      a = [[comparable_end(r[0]), 0, r[0].end], [comparable_end(r[1]), 1, r[1].end]].min
-      cEnd  = a[0]
-      cEndIndex = a[1]	# r[cEndIndex] == RangeExtd obj that gives the end of the resultant range.
-      cEndOrig = a[2]
-      stEnd = nil
-    end
-
-    case cBeg <=> cEnd
-    when 1	# cBeg > cEnd
-      RangeExtd::NONE
-
-    when 0	# cBeg == cEnd
-      stEnd = r[0].exclude_end? 
-      if (!stBeg) && (!stEnd)
-        RangeExtd(cBeg..cBeg)	# Point range
-      else
-        RangeExtd::NONE
-      end
-
-    when -1	# cBeg < cEnd
-      # Now, the range must be (cBeg, cEnd).  May need adjustment of the exclude status.
-      if stEnd.nil?
-        stEnd = r[cEndIndex].exclude_end?
-      # else
-      # # Already defined.
-      end	# if stEnd.nil?
-
-      RangeExtd(cBeg, cEndOrig, :exclude_begin => stBeg, :exclude_end => stEnd)
-    else
-      raise
-    end		# case cBeg <=> cEnd
-
-  end	# def self.conjunctionRangeExtd(r1, r2)
-  private_class_method :conjunctionRangeExtd
-
 
   # True if object is a type of Rangeary
   def self.is_rangeary_type?(obj)
@@ -1758,18 +1664,19 @@ class Array
 
   # Updated Array#==
   #
-  # This returns true even if the standard #{==} is false, if both are *practically* empty,
+  # This modifies the original equality operator so that it returns true
+  # when both self and other are *practically* empty,
   # that is, if +#empty_element?+ and/or +empty?+ are true for both, they are equal.
-  # Also, this equates the "end" of Endless Range (Ruby 2.6) with Float::INFINITY or
-  # RangeExtd::Infinity::POSITIVE.
-  # Note by definition, it would appear at the last element in Rangeary only,
-  # if it does.
+  #
+  # This modification is necessary because {Rangeary#empty?} never returns +true+;
+  # when it has no Range elements, it holds +RangeExtd::NONE+ or equivalent,
+  # in whih case {Rangeary#empty_element?} returns +true+.
   #
   # @param other [Object]
   def ==(other)
     return true  if equals_before_rangeary other
-    return false if !other.class.method_defined?(:to_ary)
-    return false if !self.class.method_defined?(:empty_element?) && !other.class.method_defined?(:empty_element?)
+    #return false if !other.class.method_defined?(:to_ary)
+    #return false if !self.class.method_defined?(:empty_element?) && !other.class.method_defined?(:empty_element?)
 
     # It was false.  Is it?
     # eg., (Rangeary[RangeExtd::NONE] == []) is true,
@@ -1777,32 +1684,34 @@ class Array
     # Now either other or self is guranteed to be Rangeary.
     self_empt  = (respond_to?(:empty_element?) ? empty_element? : empty?)
     other_empt = (other.respond_to?(:empty_element?) ? other.empty_element? : other.empty?)
-    return true  if self_empt && other_empt
-    return false if self_empt ^  other_empt
-    # return false if size != other.size  # evaluated at the beginning.
-    return false if size >= 2 && self[0..-2] != other[0..-2]
-    return false if !self[-1].respond_to?(:exclude_end?) || !other[-1].respond_to?(:exclude_end?)
+    self_empt && other_empt
 
-    # Now, both are guaranteed to have the same number of non-zero elements,
-    # all their elements except for the last one are equal,
-    # and their last elements are Range-type instances.
-    # Yet, the standard "equal" operator has failed.
-    # Only the potential they may be equal is their last elements differ
-    # between Endless Range (Ruby 2.6) and Infinity.
-    c_self  = Rangeary.comparable_end self[-1]
-    c_other = Rangeary.comparable_end other[-1]
-    return false if c_self != c_other
+    #return true  if self_empt && other_empt
+    #return false if self_empt ^  other_empt
+    ## return false if size != other.size  # evaluated at the beginning.
+    #return false if size >= 2 && self[0..-2] != other[0..-2]
+    #return false if !self[-1].respond_to?(:exclude_end?) || !other[-1].respond_to?(:exclude_end?)
 
-    if !c_self.class.method_defined?(:infinite?) && !c_self.class.method_defined?(:infinity?)
-      # :infinite? for Float::INFINITY, :infinity? is defined in RangeExtd::Infinity
-      warn "sanity check failed. c_self should be infinite (#{c_self.inspect}). The result is not guranteed. Contact the code developer."
-    end
+    ## Now, both are guaranteed to have the same number of non-zero elements,
+    ## all their elements except for the last one are equal,
+    ## and their last elements are Range-type instances.
+    ## Yet, the standard "equal" operator has failed.
+    ## Only the potential they may be equal is their last elements differ
+    ## between Endless Range (Ruby 2.6) and Infinity.
+    #c_self  = Rangeary.comparable_end self[-1]
+    #c_other = Rangeary.comparable_end other[-1]
+    #return false if c_self != c_other
 
-    # The end of their last elements are both positive Infinity.
-    # How about "begin"?
-    self_flag  = (self[-1].class.method_defined?(:exclude_begin?)  ? self[-1].exclude_begin?  : false)
-    other_flag = (other[-1].class.method_defined?(:exclude_begin?) ? other[-1].exclude_begin? : false)
-    (self[-1].begin == other[-1].begin) && (self_flag == other_flag)
+    #if !c_self.class.method_defined?(:infinite?) && !c_self.class.method_defined?(:infinity?)
+    #  # :infinite? for Float::INFINITY, :infinity? is defined in RangeExtd::Infinity
+    #  warn "sanity check failed. c_self should be infinite (#{c_self.inspect}). The result is not guranteed. Contact the code developer."
+    #end
+
+    ## The end of their last elements are both positive Infinity.
+    ## How about "begin"?
+    #self_flag  = (self[-1].class.method_defined?(:exclude_begin?)  ? self[-1].exclude_begin?  : false)
+    #other_flag = (other[-1].class.method_defined?(:exclude_begin?) ? other[-1].exclude_begin? : false)
+    #(self[-1].begin == other[-1].begin) && (self_flag == other_flag)
   end
 end  # class Array
 

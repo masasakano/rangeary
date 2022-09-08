@@ -9,11 +9,11 @@ example, a multiple range of
 
 for `x` can be defined in this class.
 
-The element objects for [Rangeary} can be anthing that can form RangeExtd
-objects, not only Numeric (or Real) but anything Comparable.  {Rangeary}
+The element objects for `Rangeary` can be anthing that can form RangeExtd
+objects, not only Numeric (or Real) but anything Comparable.  `Rangeary`
 accepts the built-in Range-class objects for the elements in initialization,
-too, providing it is a valid (+Range#valid? == true+) ones for the
-{RangeExtd](https://rubygems.org/gems/range_extd) class (n.b., most Range
+too, providing it is a valid (`Range#valid? == true`) ones for the
+[RangeExtd](https://rubygems.org/gems/range_extd) class (n.b., most Range
 objects are valid, but +(true..true)+ is not, for example, which would not
 make sense to constitute multiple ranges).
 
@@ -64,9 +64,10 @@ library Ver.2 or later, which is in gem:
 
     gem install range_extd
 
-Or, get it from [rubygems.org/gems/range_extd} and follow the INSTALL section
-in the manual of {RangeExtd](https://rubygems.org/gems/range_extd) for manual
-installation.
+Or, get it from {https://rubygems.org/gems/range_extd}
+
+and follow the INSTALL section in the manual of
+[RangeExtd](https://rubygems.org/gems/range_extd) for manual installation.
 
 Then, install this library with
 
@@ -154,8 +155,8 @@ a range, that is, of which +Range#valid?+ returns false, raises an exception
 (`ArgumentError`), and fails.
 
 Note `RangeExtd` (or `Range`) objects given as arguments to initialize
-[Rangeary} instances can contain negative and/or positive infinity objects.
-Since Ruby 2.7 and 2.6, {Beginless
+`Rangeary` instances can contain negative and/or positive infinity objects.
+Since Ruby 2.7 and 2.6, [Beginless
 range](https://rubyreferences.github.io/rubychanges/2.7.html#beginless-range)
 and [Endless
 Range](https://rubyreferences.github.io/rubychanges/2.6.html#endless-range-1)
@@ -231,75 +232,228 @@ website](http://rubygems.org/gems/rangeary), or you can compile the reference
 with `yard` from the source package (+make doc+ at the package root directory
 would do).
 
+### Infinities
+
+The infinities are vital in the logical operation of Rangeary. Without it,
+negation could not be definied, and other logical operations are also closely
+related to it; for example, **subtraction** is basically a combination of
+**negation** and **conjunction**.
+
+To determine what the positive and negative infinities for the given elements
+is not a trivial task. In default, `nil` is used except for `Numerics`
+(Integer, Rational, Float etc), for which `Float::INFINITY` is used. Note that
+the default use to be  `RangeExtd::Infinity::POSITIVE` and 
+`RangeExtd::Infinity::NEGATIVE` defined in
+[RangeExtd](http://rubygems.org/gems/range_extd)  up to Rangeary Ver.1, where
+both beginless and endless Ranges were not been introduced or supported.
+Rangeary Ver.2 changes the specification to be in line with the latest Ruby
+Range.
+
+Alternatively, a user can specify their own infinities in initialization of
+{Rangeary} with options of `positive:` and `negative:`. The boundaries at the
+opposite polarities usually should match unless they are comparable or either
+of them is `nil`.
+
+Here are examples how infinities work with {Rangeary}. In the first example,
+infinities are implicitly contained in the specified Range. Then, the
+infinities are internally preserved throughout operations. Note that the first
+set of 2 operations and the second set of a single operation means the same.
+
+    r1 = Rangeary(nil..Float::INFINITY).conjunction( RangeExtd::NONE )
+      # => Rangeary(RangeExtd::NONE)
+    r2 = r1.negation
+      # => Rangeary(nil..Float::INFINITY)
+
+    ~(Rangeary(nil..Float::INFINITY) * RangeExtd::NONE)
+      # => Rangeary(nil..Float::INFINITY)
+
+In the second example below, a negative infinity of "`d`" is explicitly
+specified for a Range of single alphabet String.
+
+    Rangeary("f".."k", negative: "d").negation
+      # => Rangeary("d"..."f", "k"<..nil)
+
+where +"k"<..nil+ means a begin-exclude Range or +RangeExtd("k"..nil, true)+.
+
+A note of caution is that once an infinity is defined for a Rangeary object,
+any other Rangeary objects with which operations are performed should be in
+line with the same infinities.  If you specify your own infinities, it is
+advised to do so at the beginning.  And once the infinities have been manually
+set, it is advised not to modify them (although this library should handle
+such changes appropriately -- see the method document for detail) because
+unexpected errors may occur. Here is a set of examples. 
+
+    r3 =  Rangeary("f".."k", negative: "d")
+    r4 = ~r3
+      # => Rangeary("d"..."f", "k"<..nil)
+     _ =   Rangeary(r4, positive: "t")  # raises ArgumentError(!):
+                                        # because "t" is smaller than end of Endless Range
+    r6 =   Rangeary(r3, positive: "t")  # OK: because end of r3 is only "k"
+    r7 =  ~r6
+      # => Rangeary("a"..."d", "f".."k") # differs from r4 in the second Range
+
+In the example above, `r4`, which is the negation of `r3` is "Endless", i.e.,
+the last Range in `r3` is an endless Range. So, attempting to set a positive
+infinity of "`t`" raises an Exception (`ArgumentError`).
+
+If the new infinity(ies) does not contradict the current contents (like `r6`),
+it is set accordingly and the subsequent operations (e.g., `r7`) adopt the
+value (though you should make sure it is exactly what you want).
+
+#### Algorithm of determining default infinities
+
+Callers can supply user-defined infinity objects for both or either positive
+and negative infinity and in that case they are accepted as the infinities
+with the highest priority, though ArgumentError might be issued if they
+contradict the elements; for example, if a {Rangeary} instance consists of an
+array of Integer Ranges (RangeExtd) like +(3..8)+, and yet if String "abc" is
+specified as an infinity, it **contradicts** the elements in the sense they
+are not comparable.
+
+Internally, the {Rangeary} instance has a Hash extended with
+{Rangeary::Util::HashInf}, which can be obtained with `#instances(raw: true)`.
+It has only 2 keys of `:negative` and `:positive`, the values of which are the
+current best-guessed or definite infinities.  The Hash also holds status
+information for each polarity with 3 levels of
+
+1.  `false`
+2.  `:guessed`
+3.  `:definite`
+
+
+It is `false` only when the Rangeary is absolutely void with no information
+about the contents: +Rangeary(RangeExtd::NONE)+.
+
+If the user explicitly specifies a boundary in the optional arguments in
+initialization of {Rangeary}, it is accepted in principle with an associated
+status of `:definite`.
+
+If the user-specified main arguments in initialization contain a (potentially
+multiple) {Rangeary}, their defined infinities are inherited with their
+associated statuses. 
+
+Also, user-supplied Range-s or RangeExtd-s to the arguments in initialization
+of {Rangeary} always have, except for `RangeExtd::NONE`, concrete boundary
+values, which can be `nil`.
+
+If one of the boundaries of a Range (n.b., it is **not** Rangeary) contains
+either `nil` or one of infinite values (which is checked with
+`RangeExtd::Infinity.infinite?`, where in practice a duck-typing check is
+performed, using the method `infinite?`), then it is accepted as an infinite
+value with an associated status of `:definite`.
+
+Otherwise,
+
+1.  if a boundary value is a (real-type) Numeric, `Float::INFINITY` (or its
+    negative,
+2.  or otherwise, `nil`
+
+
+is set as an infinity of the boundary with an associated status of `:guessed`.
+
+Note that the priority used to be different up to Rangeary Ver.1; `nil` was
+not used and instead the `RangeExtd::Infinity` objects were used. It was
+because the beginless Range (and endless Range before Ruby-2.6) has not been
+defined before Ruby 2.7.  Now they are defined, it is only natural to use
+`nil` as the default infinities in both ends, hence the change in
+specification in {Rangeary} Ver.2.
+
+Usually the arguments given in initialization of a {Rangeary} contain more
+than one set of infinities candidate, unless only a single argument of either
+Range (or its subclass instance) with no optional arguments is given.  The
+priority is judged in the following order:
+
+1.  the optional arguments
+2.  an associated status of `:definite`, `:guessed`, and `false` in this order
+
+
+If the associated statuses are equal for two or more inputs, the most extreme
+one among them for each polarity is chosen.  For example, suppose two
+instances of {Rangeary} are given in initialization of another {Rangeary} and
+their negative infinities are "`b`" and "`c`".  Then, because of
+
+    "b" < "c"
+
+the former ("`b`") is adopted as the new negative infinity.  Note that the
+parameters given in the optional arguments have always higher priority
+regardless.
+
+The following examples demonstrate the specification.
+
+    Rangeary(7..).negation
+      # => Rangeary(-Float::INFINITY...7)
+    Rangeary(7..).negation.negation
+      # => Rangeary(7..)
+
+Remember the default infinity for Float is `Float::INFINITY`. In this case,
+however, the positive infinity was in practice specified by the user to be
+`nil` in the form of argument of +(7..)+ If you want to specify the negative
+infinity instead, you must do it explicitly: 
+
+    Rangeary(7.., negative: nil).negation
+      # => Rangeary(...7)
+
+Alternatively, you can always use cojunction like (the following two mean the
+same):
+
+    Rangeary(..nil).conjunction(Rangeary(7..)).negation
+      # => Rangeary(...7)
+    ~(Rangeary(..nil) * Rangeary(7..))
+      # => Rangeary(...7)
+
+The registered infinities for each instance is obtained as a Hash with two
+keys of `:positive` and `negative` with the method {#infinities}; for example,
+
+    ran.infinities  # => { :negative => "a"
+                    #      :positive => nil, }
+
+If you want to obtain the raw instance variable (Hash extended with HashInf),
+specify the option `raw: true`:
+
+    ran.infinities(raw: true)
+      # => <Hash(Inf): {:negative=>"a", :positive=>nil},
+      #     status: {:negative=>:definite, :positive=>:guessed}>
+
+Consults the manuals of the methods for detail.
+
 ### Array#==
 
-Equal method of +Rangeary#==+ should work differently from Array. First, it
-behaves differently for **empty** objects, as Rangeary objects are never empty
-in the sense of Array.  Second, handling of  [Endless
-Range](https://rubyreferences.github.io/rubychanges/2.6.html#endless-range-1)
-introduced in Ruby 2.6 (and also Beginless Range in Ruby 2.7) is
-conceptionally not straightforward. For example, in Ruby 2.6,
+Equal method of +Array#==+ (and thus its child-class +Rangeary#==+) is
+modified slightly so that the behaviour when both are **practically** empty.
 
-    (?a..).size                  # => nil
-    (10..).size                  # => Infinity
-    (10..Float::INFINITY)).size  # => Infinity
-    (1.0..) != (1.0..Float::INFINITY)
+Rangeary objects are never empty in the sense of Array; it contains at least
+`RangeExtd::NONE`, which is **empty**.  Therefore, if either or both the
+Array/Rangeary return true with {Rangeary#empty_element?}, then it is regarded
+as equivalent to +Array#empty?+.
 
-These are not trivial, or even a little inconsistent.  For Range#size method,
-if it is for Numeric (but Complex), Endless Range behaves like the number
-Infinity, yet they (the mathematical infinity and the end of Endless Range) do
-not compare, and are not equal.
+Up to Ver.1 (or more precisely, in Ver.1),, the equality behaviour was far
+more complicated. The complexity originated in the incompleteness of the Ruby
+built-in borderless Range; while Ruby-2.6 introduced the endless Range, which
+Rangeary Ver.1 supported, it lacked the beginless Range till the release of
+Ruby-2.7.
 
-Rangeary offers functions of logical operations of arrays of Ranges. A
-consistent definitions of infinity is essential.  For example, the negation of
-`[5..Infinity]` is
+Since Rangeary Ver.1 implemented only the endless Range, logical operations,
+especially those that involve negation either explicitly or implicitly (like
+subtraction), were self-incomplete.  To mitigate the problem, the equality
+method was designed to handle the incompleteness instead in Rangeary Ver.1.0.
 
-    [-Infinity...5]
+Now that both beginless and endless Ranges are supported by Ruby and Rangeary
+Ver.2, such an ad hoc fix is no longer necessary or desirable. The difference
+from the Ruby default is now minimum.
 
-that is, from the negative infinity to 5, excluding the end.  Then the
-negation of it must recover the original Rangeary +(5..Infinity)+.
+Note that this library loads the utility library associated with `RangeExtd`,
+which modifies some behaviours of the equality method (operator) of all
+Object, if in a backward-compatible way, i.e., users do not have to worry
+about it for the use outside RangeExtd. For logical operations implemented in
+this library, commutative behaviours of the operators are essential and they
+would be only achieved by modifying +Object#==+.
 
-Obviously, it could not be done with +Endless Range+, as it defines only the
-positive infinity, or more accurately *positive endlessness*.  For this
-reason, the use of `RangeExtd` is crucial for Rangeary.
-
-In the Rangeary operation (of negation in this case), the following can
-happen:
-
-    r1 =   Rangeary(5..)   # => [(5..)]  (equivalent to (5..nil))
-    r2 =  ~Rangeary(5..)   # => [(-Float::INFINITY...5)]
-    r3 = ~~Rangeary(5..)   # => [(5..Float::INFINITY)]
-
-    r4 =   Rangeary(?a..)  # => [(?a..)] (equivalent to (?a..nil))
-    r5 =  ~Rangeary(?a..)  # => [(RangeExtd::Infinity::NEGATIVE...?a)]
-    r6 = ~~Rangeary(?a..)  # => [(?a..RangeExtd::Infinity::POSITIVE)]
-
-There is no reason for this operation to result in the (Ruby-2.6) Endless
-Range that began with, after the negation operation from the negative
-infinity. Nevertheless, +r1==r3+ and +r4==r6+ must hold.
-
-+RangeExtd#==+ behaves in an almost identical way to +Range#==+ (except it has
-`exclude_begin`), such as,
-
-             (1.0..) !=          (1.0..Float::INFINITY)
-    RangeExtd(1.0..) != RangeExtd(1.0..Float::INFINITY)
-
-To maintain the mathematical consistency, Rangeary needs modify the equal
-operator so +r1==r3+ and +r4==r6+ hold, as the standard equal operator of
-Array would not do the job. Hence, Rangeary now regards an Endless Range and a
-Range that ends with another Infinity as equal, as long as all the other Range
-parameters like the "begin" and `exclude_end` are equal.
-
-In practice, +Array#==+ is modified in this library (which is naturally
-inherited to Rangeary), and hence the commutativity of the equal operator is
-assured.
-
-Note that +Rangeary#equiv+ method may behave differently from the equal
+Also note that +Rangeary#equiv+ method may behave differently from the equal
 operator. For example, 
 
     Rangeary(RangeExtd(1,"<...",4), 5...8).equiv?(Rangeary(2..3, 5..7))
 
-returns true.  To describe this, this left and right Rangearies are arrays of
+returns true.  To describe this, the left and right Rangearies are arrays of
 ranges of Integers which consist of
 
 *   (Left)
@@ -316,30 +470,6 @@ According to +Integer#succ+ (+Range#each+) method, the left and right ones are
 equivalent. Therefore +Rangeary#equiv+ returns true, wheras the equal operator
 returns false for this.
 
-### Infinities
-
-The infinities are vital in the logical operation of Rangeary.  In default,
-the general infinities of `RangeExtd::Infinity::POSITIVE` and 
-`RangeExtd::Infinity::NEGATIVE` are used (see
-([RangeExtd](http://rubygems.org/gems/range_extd) for detail), except for
-comparable Numerics (Integer, Rational, Float etc), for which
-`Float::INFINITY` is used in default.  However, a user can specify their own
-infinities in initialization of {Rangeary} with options of `positive:` and
-`negative:`.
-
-Note once an infinity is defined for a Rangeary object, any other Rangeary
-objects with which operations are performed should have the same infinities. 
-In default, if different infinities are specified (or if only one of them has
-a pair of specified infinities and the others have the default values), the
-values that is smallest for the Positive infinity and largest for the Negative
-are used, though a warning may be issued (only if the built-in global variable
-+$VERBOSE+ is true).  An exception is when a user explicitly specifies the
-infinities in the option in creating a new Rangeary out of other Rangeary
-objects and else, in which case the infinities from the other "inherited"
-Rangeary included in the main parameter are ignored.
-
-The last example above shows how it works.
-
 ## Known bugs
 
 *   Rangeary Ver.2, which supports both beginless and endless Ranges, requires
@@ -347,11 +477,11 @@ The last example above shows how it works.
 *   To suppress warnings in Ruby-2.7 (in Rangeary Ver.1),
     [RangeExtd](https://rubygems.org/gems/range_extd) must be Ver.1.1.1 or
     later.
-*   [Rangeary#last_element} includes a monkey patch (which used to raise an
+*   +Rangeary#last_element+ includes a monkey patch (which used to raise an
     error before Rangeary Ver.2) to handle a bug in +Range#last+ in Ruby-2.7
-    and above (at least up to 3.1.2).  See
-    {https://bugs.ruby-lang.org/issues/18994} for detail of the bug, which was
-    very shortly resolved with ({patch
+    and above (at least up to 3.1.2).  See [Bug
+    #18994](https://bugs.ruby-lang.org/issues/18994) for detail of the bug,
+    which was in no time resolved with ([patch
     #6324](https://github.com/ruby/ruby/pull/6324), applied at commit
     [bbe5ec7](https://github.com/ruby/ruby/commit/bbe5ec78463f8d6ef2e1a3571f17
     357a3d9ec8e4)). It happens only in very limited conditions.
@@ -375,9 +505,11 @@ The implementation to Ruby was not straightforward, though, partly because the
 built-in Range does not allow to exclude the begin boundary, and partly
 because the infinity is not defined for general objects but Numeric (Real) in
 Ruby (which later changed partially with the introduction of Endless Range in
-Ruby 2.6 released in 2018 December).  RangeExtd class I have developed makes
-this library possible.  I am glad the completeness of ranges in the
-1-dimensional space for arbitrary Comparable object is achieved now.
+Ruby 2.6 released in 2018 December and further and completely with the
+introduction of Beginless Range in Ruby 2.7 released in 2019 December). 
+`RangeExtd` class I have developed makes this library possible.  I am glad the
+completeness of ranges in the 1-dimensional space for arbitrary Comparable
+object is achieved now.
 
 Enjoy.
 
