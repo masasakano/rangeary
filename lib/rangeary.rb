@@ -42,10 +42,10 @@ end
 # An arbitrary number of {Rangeary}, RangeExtd or Range objects (or its
 # descendant classes) can be supplied for the constructor {#initialize}.
 # Then, an operation of disjunction is performed to get the clean Array of
-# RangeExtd, none of which overlaps with the range.
+# RangeExtd, none of which overlaps with one another.
 #
 # Once it is constructed, {Rangeary} objects are immutable.  Any subsequent
-# operations return a new {Rangeary} object.  All but few methods of {Array}
+# operation returns a new {Rangeary} object.  All but few methods of {Array}
 # are inherited, though some methods, such as +push+ do not work because of
 # immutability of {Rangeary} objects.
 #
@@ -59,7 +59,7 @@ end
 # To determine what the positive and negative infinities for the given
 # elements is not a trivial task. In default, +nil+ is used except for
 # +Numerics+ (Integer, Rational, Float etc), for which +Float::INFINITY+
-# is used. Note that the default use to be
+# is used. Note that the default used to be
 # <tt>RangeExtd::Infinity::POSITIVE</tt> and  <tt>RangeExtd::Infinity::NEGATIVE</tt>
 # defined in {RangeExtd}[http://rubygems.org/gems/range_extd]
 # up to Rangeary Ver.1, where both beginless and endless Ranges were not
@@ -77,7 +77,7 @@ end
 # and yet if String "abc" is specified as an infinity, it *contradicts*
 # with the elements in the sense they are not comparable.
 #
-# Here are examples how infinities work with {Rangeary}. In the first
+# Here are examples of how infinities work with {Rangeary}. In the first
 # example, infinities are implicitly contained in the specified Range.
 # Then, the infinities are internally preserved throughout operations.
 # Note that the first set of 2 operations and the second set of a single operation
@@ -111,7 +111,7 @@ end
 # the elements in the sense they are not comparable.
 #
 # Internally, the {Rangeary} instance has a Hash extended with {Rangeary::Util::HashInf},
-# which can be obtained with {#instances}.
+# which can be obtained with {Rangeary#infinities}.
 # It has only 2 keys of +:negative+ and +:positive+, the values of which
 # are the current best-guessed or definite infinities.  The Hash also
 # holds status information for each polarity with 3 levels of
