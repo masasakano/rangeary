@@ -1,4 +1,22 @@
 -----
+(Version: 2.0)
+2022-09-08  Masa Sakano
+  * Major upgrade to deal with Beginless Range of Ruby-2.7
+  
+    * Library path changed from `rangeary/rangeary.rb` to `rangeary.rb`
+      * `range_extd/infinity/infinity.rb` => `range_extd/infinity.rb`
+    * require RangeExtd `range_extd` Ver.2.
+    * The default infinity is now +nil+ except for Float, changed from the `RangeExtd::Infinity` objects.
+    * New Module `Rangeary::Util`
+      * containing private methods common to Rangeary instance and class methods.
+    * New Module `Rangeary::Util::HashInf` 
+      * extended to Hash to represent infinity objects.
+      * `Rangeary#infinities` now returns the internal object (Hash extended with `HashInf`) in default.
+    * Explicitly and implicitly given infinities are now handled according to its priorities.
+      * The defined infinities are now properly inherited.
+    * `Array#==` is now much closer to the original.
+
+-----
 (Version: 1.0.1)
 2020-01-27  Masa Sakano
   * Fixed warnings with Ruby-2.7. A bug for Ruby-2.7 only still remains.
