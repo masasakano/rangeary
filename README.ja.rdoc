@@ -547,7 +547,6 @@ the 1-dimensional space for arbitrary Comparable object is achieved now.
 Enjoy.
 
 
-
 == Miscellaneous
 
 == Copyright etc
@@ -567,9 +566,9 @@ Versions:: The versions of this package follow Semantic Versioning (2.0.0) http:
    0.5 < x <= 2.5,  6.0 <= x < 8.0,  10.0 <= x (<= 無限大)
 がこのクラスで定義できます。
 
-RangeExtd の要素たり得るオブジェクトは全て {Rangeary} の要素となり
-得ます。Numeric(の実数)に限らず、Comparable であるオブジェクトは全て
-可能です。また、{Rangeary} は、組込Rangeクラスのオブジェクトも、それが
+RangeExtd の要素たり得るオブジェクトは全て +Rangeary+ の要素となり得ます。
+Numeric(の実数)に限らず、Comparable であるオブジェクトは全て
+可能です。また、+Rangeary+ は、組込Rangeクラスのオブジェクトも、それが
 {RangeExtd}[https://rubygems.org/gems/range_extd] クラスの
 (<tt>Range#valid? == true</tt>) を満たす限り初期化に使えます
 (注: ほとんどの Rangeオブジェクトはこの条件を満たすものの、

@@ -147,13 +147,13 @@ end
 
     def test__get_infinities
       rn = Rangeary.new
-      hs = rn.instance_eval{_build_infinities({}, [(77..78)], guess_strict: false)}
+      hs = rn.instance_eval{_build_infinities({}, [(77..78)])}
       assert_equal(-InfF, hs[:negative])
       assert_equal( InfF, hs[:positive])
-      hs = rn.instance_eval{_build_infinities({}, [(77...InfF)], guess_strict: false)}
+      hs = rn.instance_eval{_build_infinities({}, [(77...InfF)])}
       assert_equal(-InfF, hs[:negative])
       assert_equal( InfF, hs[:positive])
-      hs = rn.instance_eval{_build_infinities({}, [(-InfF..78)], guess_strict: false)}
+      hs = rn.instance_eval{_build_infinities({}, [(-InfF..78)])}
       assert_equal(-InfF, hs[:negative])
       assert_equal( InfF, hs[:positive])
       #hs = rn.instance_eval{_get_infinities [(77...InfF)], guess_strict: true}

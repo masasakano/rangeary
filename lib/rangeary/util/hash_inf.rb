@@ -111,22 +111,15 @@ class Rangeary < Array
 
         POSNEG2METHOD.each_key do |posneg|
           cmped = (force ? 1 : (STATUS_PRIORITIES[self.status[posneg]] <=> STATUS_PRIORITIES[other.status[posneg]]))
-#print "DEBUG:408:mergeh: [force, cmped, posneg, self, other]=";p [force, cmped, posneg, self, other].inspect
           case cmped
           when -1
             # Do nothing
           when 0, 1
             next if false == other[posneg]  # no change if the status of "other" is false; n.b., when force==true, chances are self[posneg]!=false and other[posneg]==false, because "cmped" for the *case* is modified!
             if 0 == cmped
-#print "DEBUG:409:mergeh: [force, posneg, self[p], other[p]]=";p [force, posneg, self[posneg], other[posneg]].inspect
               if false != self[posneg]
                 oper = ((posneg == :negative) ? :> : :<)
-#begin
                 to_change = _former_more_extreme?(oper, self[posneg], other[posneg])
-#rescue
-#  print "DEBUG:412:mergeh: [force, cmped, posneg, self, other]=";p [force, cmped, posneg, self, other].inspect
-#  raise
-#end
                 next if !to_change
               end
             end
@@ -156,10 +149,8 @@ class Rangeary < Array
       # @param v2 [Object]
       # @raise [ArgumentError]
       def _former_more_extreme?(oper, v1, v2)
-#print "DEBUG:512:extrem: [oper, v1, v2]=";p [oper, v1, v2]
         return true if v1.nil?
         return false if v2.nil?
-#print "DEBUG:513:extrem: resu=";p v1.send(oper, v2)
         v1.send(oper, v2)
       rescue ArgumentError => err
         raise ArgumentError, "Inconsistent given infinities: "+err.message

@@ -176,11 +176,9 @@ class Rangeary < Array
 
       POSNEG2METHOD.each_pair do |posneg, metho|  # n.b. method() is a Ruby built-in function.
         val = ran.send(metho)
-#print "DEBUG563:from_ran: method,val=";p [metho,val]
         inf, stat = _get_infinity_status_single(val, posneg)
         reths.set_posinega_with_status(posneg, inf, stat)
       end
-#print "DEBUG568:from_ran: reths=";p reths
 
       _get_adjusted_infinities(reths)
     end
@@ -225,7 +223,6 @@ class Rangeary < Array
     # @return [Hash<Object>] (HashInf) 2 keys of :positive and :negative. false if not found anything.
     def _get_adjusted_infinities(ininf)
       reths = HashInf.construct(ininf)
-#print "DEBUG362:adjusted: original reths=";p [reths]
 
       # If both infinites have the same polarity, the information is reset.
       return HashInf.construct() if _infinites_with_same_polarity?(*(ininf.values))
@@ -239,7 +236,6 @@ class Rangeary < Array
           end
         raise "Should not happen" if !hspri[posneg]
       end
-#print "DEBUG363:adjusted: reths,hspri=";p [reths,hspri]
       return reths if hspri[:positive] == hspri[:negative]
 
       if hspri[:positive] < hspri[:negative]
@@ -261,7 +257,6 @@ class Rangeary < Array
             nil
           end
         reths.set_positive_with_status(inf, :guessed)
-#print "DEBUG364:adjusted: reths=";p [reths]
         return reths
       end
 
@@ -279,7 +274,6 @@ class Rangeary < Array
           else
             nil
           end
-#print "DEBUG365:adjusted: reths=";p [reths]
       end
       reths.set_negative_with_status(inf, :guessed)
 
@@ -324,49 +318,6 @@ class Rangeary < Array
     end
     private :_validate_opts_infinities
 
-
-#    # Validate the infinities by Options and inherited and select the best
-#    #
-#    # If Option is specified, that has the priority.
-#    # Among the inherited, the youngest non-nil one has the highest priority.
-#    #
-#    # If there are any inconsistencies, issue a warning message, if $VERBOSE==true.
-#    #
-#    # Note this method does not look at the contents of the Range Array given.
-#    #
-#    # @param ar_inherit [Array<Hash<Infinity, nil>>] Inherited infinities from the input Rangeary-s
-#    # @param hs_opts [Hash, nil] :positive, :negative, specified by the option to {Rangeary.initialize}
-#    # @return [Hash] keys (:positive and :negative) with a single value for each
-#    def _validate_select_infinities(ar_inherit, hs_opts=nil)
-#      hs_inherit = _get_cand_infinities(ar_inherit)
-#      if !hs_opts
-#        hs_opts = hs_inherit.map{ |ek, ev|
-#          [hs_inherit[ek], nil]
-#        }.to_h  # Ruby 2.1 or later
-#      end
-#      # e.g., hs_inherit[:positive] == [ "z"(From-Option), nil(Inherited), "y"(Inherited), INFINITY(inherited) ]
-#
-#      # Selection
-#      hsret = _sort_inherited_infinities_all( hs_inherit ).map{ |ek, ev|
-#        [ek, ([hs_opts[ek]]+ev).compact[0]]
-#      }.to_h  # Ruby 2.1 or later
-#
-#      # Validation (for warning, issued when $VERBOSE==true)
-#      if $VERBOSE
-#        hs_inherit.each_pair do |ek, ev|  # loop over [:positive, :negative]
-#          ev_uniq = ([hs_opts[ek]]+ev).compact.uniq
-#          ev_uniq.delete false
-#          msg = "Inconsistent %s infinities are found: %s (=> %s is used)"%[ek, ev_uniq.inspect, hsret[ek]]
-#          #warn msg if $VERBOSE && (ev_uniq.size > 2) && (!ev_uniq.all?{ |c| RangeExtd::Infinity.infinite?(c) })
-#          warn msg if (ev_uniq.size > 1) && (!ev_uniq.all?{ |c| RangeExtd::Infinity.infinite?(c) })
-#  warn "DEBUG:998:warn: hs_inherit=#{hs_inherit}, hs_opts=#{hs_opts}" if (ev_uniq.size > 1) && (!ev_uniq.all?{ |c| RangeExtd::Infinity.infinite?(c) }) && Float === ev_uniq[-1]       ################
-#  warn "DEBUG:999:warn: #{ev_uniq.map(&:class).map(&:inspect)}" if (ev_uniq.size > 1) && (!ev_uniq.all?{ |c| RangeExtd::Infinity.infinite?(c) })      ################
-#        end
-#      end
-#
-#      hsret
-#    end
-#    private :_validate_select_infinities
 
     # Returns the candidate @infinities from the input Rangeary
     #
@@ -452,7 +403,6 @@ class Rangeary < Array
     # @param ar [<Range, RangeExtd>] Arbitrary number.
     # @return [Array<Range, RangeExtd>]
     def sort_ranges_core(*ar)
-#print "DEBUG220:sort: ar=";p [ar, ar.flatten, ar.flatten.map{|i| i.is_none? rescue i}]
       ar.flatten.sort{ |a,b|
         err_msg_ab = "invalid parameter (#{a.inspect} or #{b.inspect})."
 
@@ -470,10 +420,7 @@ class Rangeary < Array
         # Even in Ruby-2.7, this routine need no change, because nil is
         # correctly handled.
         ends = { :a => a, :b => b }
-        #begs = {}
         ends.each_pair do |k, v|
-          #ran = comparable_beginend(v)
-          #begs[k], ends[k] = ran.begin, ran.end
           ends[k] = comparable_beginend_core(v).end
         end
 
@@ -591,34 +538,20 @@ class Rangeary < Array
     # @return [Rangeary]
     def conjunction_core(r1, r2, infs: nil)
 
-#print "DEBUG21:conj: r1,r2=";p [r1, r2]
       r1 = Rangeary.new(r1) if ! defined? r1.first_element
       r2 = Rangeary.new(r2) if ! defined? r2.first_element
 
       hsinf = (infs || _get_infinities_from_multiple(r1, r2))
-#print "DEBUG22:conj: hsinf=";p hsinf
       return Rangeary.new(RangeExtd::NONE, **hsinf) if r1.null? || r2.null?
       #return Rangeary.new(r1, **hsinf) if r2.all?
       #return Rangeary.new(r2, **hsinf) if r1.all?
       return(infs ? Rangeary.new(r1, infs) : Rangeary.new(r1, **hsinf)) if r2.all?
       return(infs ? Rangeary.new(r2, infs) : Rangeary.new(r2, **hsinf)) if r1.all?
 
-      ## Getting inherited options (if Rangeary is given) for the later use.
-      #_ = _validate_select_infinities [r1, r2].map(&:infinities)
-
-      # hsInherited = _validate_select_infinities [r1, r2].map(&:infinities)
-      # hsInherited = _best_inherited_infinities [r1, r2].map(&:infinities)
-
-#print "DEBUG31:conj: r1,r2=";p [r1, r2]
       # Initialisation
       a1 = r1.to_a
       a2 = r2.to_a
-#print "DEBUG32:conj: inherit=";p hsInherited
-      #rc = Rangeary.new( RangeExtd::NONE, **hsInherited )
       rc = Rangeary.new( RangeExtd::NONE, **hsinf )  # hsinf is essential to define @infinities
-
-#print "DEBUG33:conj: rc=";p rc
-#print "DEBUG34:conj: rc@infinities=";p rc.infinities
 
       if a1.empty? || a2.empty?
         return rc
@@ -655,12 +588,9 @@ class Rangeary < Array
           end
 
           # Core - Perform conjunction.
-#print "DEBUG37:conj: [ea1,ea2]=";p [ea1,ea2]
           pq1 = conjunctionRangeExtd(ea1, ea2)	# => Rangeary.conjunctionRangeExtd()
           if ! pq1.empty?
-#print "DEBUG37:conj: pq1=";p pq1
             rc += (infs ? Rangeary.new(pq1, infs) : Rangeary.new(pq1))
-#print "DEBUG38:conj: rc@infinities=";p rc.instance_variable_get("@infinities")
             last_a1index = ind
           end
         end	# a1.each_with_index do |ea1, ind|
